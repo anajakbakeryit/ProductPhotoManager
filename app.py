@@ -50,6 +50,39 @@ _SRGB_ICC = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
 
 
 import re
+import logging
+from collections import deque
+
+def _setup_logging() -> logging.Logger:
+    """Phase 6: ตั้งค่า logging ให้บันทึกลงไฟล์ด้วย (rotation 5 MB, เก็บ 3 ไฟล์)."""
+    from logging.handlers import RotatingFileHandler
+    fmt = logging.Formatter(
+        "%(asctime)s [%(threadName)s] %(levelname)-8s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    # Console handler
+    if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        ch = logging.StreamHandler()
+        ch.setFormatter(fmt)
+        root.addHandler(ch)
+
+    # File handler (rotating)
+    try:
+        fh = RotatingFileHandler(
+            "app.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
+    except OSError as e:
+        logging.warning(f"ไม่สามารถเปิดไฟล์ log: {e}")
+
+    return logging.getLogger(__name__)
+
+
+logger = _setup_logging()
 
 _BARCODE_UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -103,7 +136,8 @@ def _to_srgb(img):
                     renderingIntent=ImageCms.Intent.PERCEPTUAL,
                     outputMode="RGB"
                 )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[_to_srgb] ICC แปลงสีล้มเหลว: {e} — ใช้โหมดสีดิบแทน")
             # Fallback: just convert mode
             if img.mode not in ("RGB", "RGBA"):
                 img = img.convert("RGB")
@@ -289,7 +323,8 @@ class ProductDB:
         try:
             with open(self.csv_path, "a", newline="", encoding="utf-8-sig") as f:
                 csv.writer(f).writerow([barcode, name, category, note])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[ProductDB] append ไม่สำเร็จ: {e} — บันทึกใหม่ทั้งหมดแทน")
             self._save_all()
 
     def _save_all(self):
@@ -495,6 +530,10 @@ class PhotoWatcher(FileSystemEventHandler):
                     pass
                 time.sleep(0.5)
             if filepath not in self._processed:
+                # Limit set size to prevent unbounded memory growth
+                if len(self._processed) > 5000:
+                    # Discard half the oldest entries (set has no order, just trim)
+                    self._processed = set(list(self._processed)[2500:])
                 self._processed.add(filepath)
                 self.app.after(0, self.app.process_new_photo, filepath)
 
@@ -527,6 +566,20 @@ class ProductPhotoApp(tk.Tk):
         self.is_360_mode = False
         self.spin360_counter = 0
 
+        # Multi-level undo stack (Phase 4)
+        self._undo_stack: deque = deque(maxlen=20)
+
+        # Phase 6: O(1) angle label lookup dict {angle_id: (label, label_th)}
+        self._angle_label_map: dict[str, tuple[str, str]] = {
+            a["id"]: (a["label"], a.get("label_th", a["label"]))
+            for a in self.config["angles"]
+        }
+
+        # Thread safety locks
+        self._config_lock = threading.Lock()
+        self._session_lock = threading.Lock()
+        self._counter_lock = threading.Lock()
+
         # Image processor thread
         self.processor = ImageProcessor(self)
         self.processor.start()
@@ -541,6 +594,7 @@ class ProductPhotoApp(tk.Tk):
         self.bind("<Control-z>", lambda e: self.undo_last_photo())
         self.after(100, lambda: self.barcode_entry.focus_set())
         self.after(500, self._restore_session)
+        self.after(1000, self._startup_checks)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # =========================================================================
@@ -688,6 +742,18 @@ class ProductPhotoApp(tk.Tk):
             fg=C["text_dim"], bg=C["tag_bg"], padx=6, pady=1
         )
         self.pipeline_badge.pack(side="right")
+
+        # Phase 4: Progress bar สำหรับ pipeline
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("Pipeline.Horizontal.TProgressbar",
+                        troughcolor=C["surface2"], background=C["accent"],
+                        borderwidth=0, thickness=4)
+        self.pipeline_progress = ttk.Progressbar(
+            pipeline_section, style="Pipeline.Horizontal.TProgressbar",
+            orient="horizontal", mode="indeterminate", length=200
+        )
+        self.pipeline_progress.pack(fill="x", pady=(0, 4))
 
         # Pipeline flow diagram - Row 1: cutout pipeline
         flow_frame = tk.Frame(pipeline_section, bg=C["surface"])
@@ -1170,8 +1236,9 @@ class ProductPhotoApp(tk.Tk):
                 elif pix_fmt in LIMITED_RANGE_FMTS:
                     limited_range = True
                 # else: unknown → fall through to heuristic
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[video360] ตรวจ pixel format ไม่ได้: {e} — ใช้ heuristic แทน")
+                limited_range = False  # safe default: assume full range
 
             # Method 2: Percentile-based heuristic (robust against outliers)
             # Uses grayscale (≈luma) to avoid BGR channel mixing issues
@@ -1989,8 +2056,8 @@ viewer.addEventListener('mousedown', stopAuto);
             self._preview_photo_ref = photo  # prevent GC
             fname = os.path.basename(image_path)
             self.preview_info_label.configure(text=fname)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[preview] แสดงภาพตัวอย่างไม่ได้: {e}")
 
     def _update_pipeline_status(self):
         pending = self.pipeline_pending
@@ -1999,15 +2066,30 @@ viewer.addEventListener('mousedown', stopAuto);
             self.pipeline_badge.configure(
                 text="  ว่าง  ", fg=C["text_dim"], bg=C["tag_bg"]
             )
+            self.pipeline_progress.stop()
+            self.pipeline_progress.configure(value=0)
         else:
             self.pipeline_badge.configure(
-                text=f"  คิว: {pending}  ", fg="#fff", bg=C["orange"]
+                text=f"  กำลังประมวลผล {pending}  ", fg="#fff", bg=C["orange"]
             )
+            if not self.pipeline_progress.cget("mode") == "indeterminate":
+                self.pipeline_progress.configure(mode="indeterminate")
+            self.pipeline_progress.start(15)
 
     def _on_pipeline_done(self):
         """Called by ImageProcessor after finishing one task."""
         self.pipeline_pending = max(0, self.pipeline_pending - 1)
         self._update_pipeline_status()
+        # แสดงพื้นที่ดิสก์ใน log ทุก 10 งาน
+        if self.pipeline_pending == 0:
+            output_root = self.config.get("output_folder", "")
+            if output_root:
+                try:
+                    stat = shutil.disk_usage(output_root)
+                    free_gb = stat.free / (1024 ** 3)
+                    self.log(f"   💾 พื้นที่เหลือ: {free_gb:.1f} GB", "dim")
+                except OSError:
+                    pass
 
     # =========================================================================
     # BARCODE
@@ -2167,6 +2249,10 @@ viewer.addEventListener('mousedown', stopAuto);
         ext = os.path.splitext(filepath)[1].lower()
         output_root = self.config["output_folder"]
 
+        # Phase 3: ตรวจสอบพื้นที่ดิสก์ก่อนบันทึก
+        if output_root and not self._check_disk_space(output_root, warn_only=False):
+            return
+
         # --- 360 MODE ---
         if self.is_360_mode and angle == "360":
             self.spin360_counter += 1
@@ -2253,13 +2339,15 @@ viewer.addEventListener('mousedown', stopAuto);
             else:
                 shutil.move(filepath, original_path)
 
-            self.session_photos.append({
+            photo_entry = {
                 "barcode": barcode, "angle": angle,
                 "filename": new_filename, "path": original_path,
                 "time": datetime.now().strftime("%H:%M:%S"),
-            })
+            }
+            self.session_photos.append(photo_entry)
+            self._push_undo(photo_entry)  # Phase 4: multi-level undo
 
-            self.log(f"   \u2713 Original: original/{barcode}/{new_filename}", "success")
+            self.log(f"   ✓ Original: original/{barcode}/{new_filename}", "success")
 
             # Generate multi-resolution (S/M/L/OG) then remove root file
             base_name = os.path.splitext(new_filename)[0]
@@ -2288,16 +2376,11 @@ viewer.addEventListener('mousedown', stopAuto);
                 _, _, _, cnt_lbl = self.angle_buttons[angle]
                 cnt_lbl.configure(text=f"{count}")
 
-            label_th = angle
-            label = angle
-            for a in self.config["angles"]:
-                if a["id"] == angle:
-                    label = a["label"]
-                    label_th = a.get("label_th", label)
-                    break
+            # Phase 6: O(1) lookup แทน O(n) loop
+            label, label_th = self._angle_label_map.get(angle, (angle, angle))
             self.current_state_label.configure(
-                text=f"{barcode}  \u2014  {label_th} ({label})  \u2014  {count} รูป",
-                fg=C["green"]
+                text=f"{barcode}  —  {label_th} ({label})  —  {count} รูป",
+                fg=C["green"],
             )
 
             # Enqueue for post-processing (use OG as source)
@@ -2327,6 +2410,13 @@ viewer.addEventListener('mousedown', stopAuto);
     def log(self, message, tag=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_text.configure(state="normal")
+        # Trim log when it gets too long (keep last 500 lines to avoid memory growth)
+        try:
+            line_count = int(self.log_text.index("end-1c").split(".")[0])
+            if line_count > 1000:
+                self.log_text.delete("1.0", f"{line_count - 500}.0")
+        except Exception:
+            pass
         line = f"  {timestamp}  {message}\n"
         if tag:
             self.log_text.insert("end", line, tag)
@@ -2351,8 +2441,8 @@ viewer.addEventListener('mousedown', stopAuto);
         try:
             with open(SESSION_FILE, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[session] บันทึก session ไม่สำเร็จ: {e}")
 
     def _restore_session(self):
         """Restore session state from disk if available."""
@@ -2398,8 +2488,13 @@ viewer.addEventListener('mousedown', stopAuto);
                     cnt_lbl.configure(text=f"{cnt}")
 
             self.log(f"กู้คืนเซสชัน: {total} รูป, บาร์โค้ด={self.current_barcode}", "success")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[session] กู้คืน session ไม่สำเร็จ: {e}")
+            self.log("⚠ ข้อมูล session เสียหาย ไม่สามารถกู้คืนได้", "warning")
+            try:
+                os.remove(SESSION_FILE)
+            except OSError:
+                pass
 
     # =========================================================================
     # SETTINGS WINDOW
@@ -2694,8 +2789,9 @@ viewer.addEventListener('mousedown', stopAuto);
                 max(0, min(255, self._st_bg_g.get())),
                 max(0, min(255, self._st_bg_b.get())),
             ]
-        except (tk.TclError, ValueError):
-            pass
+        except (tk.TclError, ValueError) as e:
+            messagebox.showerror("ข้อผิดพลาด", f"ค่าสีพื้นหลังไม่ถูกต้อง: {e}\nต้องเป็นตัวเลข 0-255", parent=win)
+            return
 
         # 360
         self.config["spin360_total"] = self._st_spin_total.get()
@@ -2707,7 +2803,8 @@ viewer.addEventListener('mousedown', stopAuto);
         if exts:
             self.config["image_extensions"] = exts
 
-        save_config(self.config)
+        with self._config_lock:
+            save_config(self.config)
 
         # Sync main UI variables
         self.watch_folder_var.set(self.config["watch_folder"])
@@ -2737,10 +2834,10 @@ viewer.addEventListener('mousedown', stopAuto);
         self._open_settings()
 
     # =========================================================================
-    # EXPORT REPORT
+    # EXPORT REPORT — Phase 4: HTML + CSV dual output
     # =========================================================================
     def export_report(self):
-        """Generate CSV report summarizing photos per barcode per angle."""
+        """สร้างรายงาน HTML + CSV สรุปรูปแต่ละบาร์โค้ด."""
         output_root = self.config.get("output_folder", "")
         if not output_root:
             messagebox.showwarning("คำเตือน", "ยังไม่ได้ตั้งค่าโฟลเดอร์ปลายทาง")
@@ -2751,14 +2848,14 @@ viewer.addEventListener('mousedown', stopAuto);
             messagebox.showwarning("คำเตือน", "ไม่พบรูปภาพในโฟลเดอร์ปลายทาง")
             return
 
-        # Scan output directory
-        report_rows = []
+        # Scan output directory once (Phase 6: single-pass)
+        report_rows: list[dict] = []
         for barcode_dir in sorted(os.listdir(original_dir)):
             og_dir = os.path.join(original_dir, barcode_dir, "OG")
             if not os.path.isdir(og_dir):
                 continue
-            files = [f for f in os.listdir(og_dir) if f.endswith((".jpg", ".jpeg", ".png"))]
-            angles = {}
+            files = [f for f in os.listdir(og_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))]
+            angles: dict[str, int] = {}
             total_360 = 0
             for f in files:
                 if "_360_" in f:
@@ -2771,41 +2868,139 @@ viewer.addEventListener('mousedown', stopAuto);
 
             product = self.product_db.lookup(barcode_dir)
             name = product["name"] if product else ""
+            category = product["category"] if product else ""
 
-            angle_summary = ", ".join(f"{a}:{c}" for a, c in sorted(angles.items()))
             report_rows.append({
                 "barcode": barcode_dir,
                 "name": name,
+                "category": category,
                 "total_photos": len(files),
                 "total_360": total_360,
-                "angles": angle_summary,
+                "angles": angles,
             })
 
         if not report_rows:
             messagebox.showinfo("ส่งออก", "ไม่พบรูปภาพสำหรับรายงาน")
             return
 
-        # Save CSV — default to export_folder if set
         export_dir = self.config.get("export_folder", "")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # — ถามผู้ใช้ว่าบันทึกที่ไหน (HTML)
         report_path = filedialog.asksaveasfilename(
-            title="บันทึกรายงาน",
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv")],
+            title="บันทึกรายงาน HTML",
+            defaultextension=".html",
+            filetypes=[("HTML report", "*.html"), ("CSV", "*.csv")],
             initialdir=export_dir if export_dir and os.path.isdir(export_dir) else None,
-            initialfile=f"photo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            initialfile=f"photo_report_{ts}.html",
         )
         if not report_path:
             return
 
-        with open(report_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=["barcode", "name", "total_photos", "total_360", "angles"])
-            writer.writeheader()
-            writer.writerows(report_rows)
-
         total_barcodes = len(report_rows)
         total_photos = sum(r["total_photos"] for r in report_rows)
-        self.log(f"ส่งออกรายงาน: {total_barcodes} บาร์โค้ด, {total_photos} รูป -> {os.path.basename(report_path)}", "success")
-        messagebox.showinfo("ส่งออก", f"บันทึกรายงานแล้ว!\n\n{total_barcodes} บาร์โค้ด\n{total_photos} รูปทั้งหมด")
+        total_360 = sum(r["total_360"] for r in report_rows)
+
+        # — สร้าง HTML report สไตล์ Metronic dark theme
+        if report_path.endswith(".html"):
+            self._write_html_report(report_path, report_rows, ts)
+        else:
+            # CSV fallback
+            with open(report_path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=["barcode", "name", "category", "total_photos", "total_360", "angles"]
+                )
+                writer.writeheader()
+                for row in report_rows:
+                    row2 = dict(row)
+                    row2["angles"] = ", ".join(f"{a}:{c}" for a, c in sorted(row["angles"].items()))
+                    writer.writerow(row2)
+
+        self.log(
+            f"ส่งออกรายงาน: {total_barcodes} บาร์โค้ด, {total_photos} รูป → {os.path.basename(report_path)}",
+            "success",
+        )
+        messagebox.showinfo(
+            "ส่งออกสำเร็จ",
+            f"บันทึกรายงานแล้ว!\n\n"
+            f"บาร์โค้ด: {total_barcodes}\n"
+            f"รูปทั้งหมด: {total_photos}\n"
+            f"360°: {total_360} เฟรม",
+        )
+
+    def _write_html_report(self, path: str, rows: list, timestamp: str) -> None:
+        """เขียน HTML report สวยงาม สไตล์ dark theme (Metronic-inspired)."""
+        total_photos = sum(r["total_photos"] for r in rows)
+        total_360 = sum(r["total_360"] for r in rows)
+        n_sku = len(rows)
+        generated_at = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+        rows_html = ""
+        for i, row in enumerate(rows, 1):
+            angle_badges = "".join(
+                f'<span class="badge">{a}<span class="cnt">{c}</span></span>'
+                for a, c in sorted(row["angles"].items())
+            )
+            rows_html += f"""
+            <tr>
+                <td class="num">{i}</td>
+                <td class="bc">{html_mod.escape(row["barcode"])}</td>
+                <td>{html_mod.escape(row["name"])}</td>
+                <td>{html_mod.escape(row["category"])}</td>
+                <td class="num">{row["total_photos"]}</td>
+                <td class="num">{row["total_360"] or "—"}</td>
+                <td class="angles">{angle_badges}</td>
+            </tr>"""
+
+        html = f"""<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>รายงานภาพสินค้า — {timestamp}</title>
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:'Segoe UI',sans-serif;background:#0f1117;color:#e2e4ed;padding:32px}}
+h1{{font-size:22px;font-weight:600;color:#6c8cff;margin-bottom:4px}}
+.sub{{color:#6b7394;font-size:13px;margin-bottom:24px}}
+.stats{{display:flex;gap:16px;margin-bottom:28px;flex-wrap:wrap}}
+.card{{background:#1a1d27;border:1px solid #2e3348;border-radius:8px;padding:16px 24px;min-width:140px}}
+.card .val{{font-size:28px;font-weight:700;color:#6c8cff}}
+.card .lbl{{font-size:12px;color:#6b7394;margin-top:4px}}
+table{{width:100%;border-collapse:collapse;background:#1a1d27;border-radius:8px;overflow:hidden}}
+th{{background:#232734;color:#6b7394;font-size:11px;font-weight:600;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:1px solid #2e3348}}
+td{{padding:10px 14px;border-bottom:1px solid #1e2130;font-size:13px;vertical-align:middle}}
+tr:last-child td{{border-bottom:none}}
+tr:hover td{{background:#1e2230}}
+.num{{text-align:right;color:#6b7394}}
+.bc{{font-family:Consolas,monospace;color:#6c8cff;font-weight:600}}
+.badge{{display:inline-flex;align-items:center;background:#2a2f42;border-radius:4px;padding:2px 7px;margin:2px;font-size:11px;color:#e2e4ed}}
+.badge .cnt{{background:#6c8cff;color:#fff;border-radius:3px;padding:0 5px;margin-left:6px;font-weight:700}}
+.footer{{margin-top:24px;color:#4a5170;font-size:11px;text-align:right}}
+@media print{{body{{background:#fff;color:#000}}table,th,td{{border-color:#ccc}}}}
+</style>
+</head>
+<body>
+<h1>📸 รายงานภาพสินค้า</h1>
+<p class="sub">สร้างเมื่อ {generated_at}</p>
+<div class="stats">
+  <div class="card"><div class="val">{n_sku}</div><div class="lbl">บาร์โค้ด</div></div>
+  <div class="card"><div class="val">{total_photos}</div><div class="lbl">รูปทั้งหมด</div></div>
+  <div class="card"><div class="val">{total_360}</div><div class="lbl">เฟรม 360°</div></div>
+</div>
+<table>
+<thead><tr>
+  <th>#</th><th>บาร์โค้ด</th><th>ชื่อสินค้า</th><th>หมวดหมู่</th>
+  <th>รูปทั้งหมด</th><th>360°</th><th>มุมถ่าย</th>
+</tr></thead>
+<tbody>{rows_html}</tbody>
+</table>
+<div class="footer">ProductPhotoManager — {generated_at}</div>
+</body>
+</html>"""
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
 
     # =========================================================================
     # IMPORT PHOTOS
@@ -2826,6 +3021,7 @@ viewer.addEventListener('mousedown', stopAuto);
         exts = set(self.config.get("image_extensions", [".jpg", ".jpeg", ".png"]))
         imported = 0
         skipped = 0
+        error_count = 0
 
         for f in sorted(os.listdir(import_dir)):
             ext = os.path.splitext(f)[1].lower()
@@ -2858,28 +3054,54 @@ viewer.addEventListener('mousedown', stopAuto);
                 og_path = os.path.join(dst_dir, "OG", f"{base_name}_OG.jpg")
                 if os.path.exists(og_path):
                     os.remove(dst)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[import] ปรับขนาด {f} ไม่สำเร็จ: {e}")
+                error_count += 1
 
             imported += 1
 
-        self.log(f"นำเข้า: {imported} รูป, ข้าม {skipped} รูป (มีอยู่แล้ว)", "success")
-        messagebox.showinfo("นำเข้า", f"นำเข้า {imported} รูป\nข้าม {skipped} รูป (ซ้ำ)")
+        msg = f"นำเข้า: {imported} รูป, ข้าม {skipped} รูป (มีอยู่แล้ว)"
+        if error_count:
+            msg += f", ผิดพลาด {error_count} รูป (ดู log)"
+        self.log(msg, "success")
+        messagebox.showinfo("นำเข้า", f"นำเข้า {imported} รูป\nข้าม {skipped} รูป (ซ้ำ)" +
+                            (f"\nผิดพลาด {error_count} รูป" if error_count else ""))
 
     # =========================================================================
-    # UNDO (TRASH)
+    # UNDO (TRASH) — Phase 4: multi-level undo stack (สูงสุด 20 รายการ)
     # =========================================================================
+    def _push_undo(self, photo_entry: dict) -> None:
+        """เพิ่มรายการเข้า undo stack และอัปเดตปุ่ม."""
+        self._undo_stack.append(photo_entry)
+        self._update_undo_btn()
+
+    def _update_undo_btn(self) -> None:
+        """อัปเดต label ปุ่มเลิกทำให้แสดงจำนวน undo ที่เหลือ."""
+        n = len(self._undo_stack)
+        if n == 0:
+            self.undo_btn.configure(text="เลิกทำ", fg=C["text_dim"])
+        else:
+            self.undo_btn.configure(text=f"เลิกทำ ({n})", fg=C["red"])
+
     def undo_last_photo(self):
-        """Move the last captured photo to _trash/ folder (reversible)."""
-        if not self.session_photos:
+        """ย้ายรูปล่าสุดไป _trash/ (เลิกทำได้หลายระดับ)."""
+        # ลองดึงจาก undo stack ก่อน ถ้าไม่มีใช้ session_photos
+        if self._undo_stack:
+            last = self._undo_stack.pop()
+            # sync session_photos ด้วย
+            self.session_photos = [p for p in self.session_photos
+                                   if p.get("filename") != last.get("filename")]
+        elif self.session_photos:
+            last = self.session_photos.pop()
+        else:
             self.log("   ไม่มีอะไรให้เลิกทำ", "warning")
             return
 
-        last = self.session_photos.pop()
         barcode = last["barcode"]
         base_name = os.path.splitext(last["filename"])[0]
         output_root = self.config.get("output_folder", "")
         if not output_root:
+            self._update_undo_btn()
             return
 
         trash_dir = os.path.join(output_root, "_trash", barcode)
@@ -2899,8 +3121,11 @@ viewer.addEventListener('mousedown', stopAuto);
                         src = os.path.join(check_dir, f)
                         dst_sub = os.path.join(trash_dir, sub, sz) if sz else os.path.join(trash_dir, sub)
                         os.makedirs(dst_sub, exist_ok=True)
-                        shutil.move(src, os.path.join(dst_sub, f))
-                        moved += 1
+                        try:
+                            shutil.move(src, os.path.join(dst_sub, f))
+                            moved += 1
+                        except OSError as e:
+                            logger.warning(f"[undo] ย้ายไฟล์ไม่สำเร็จ {f}: {e}")
 
         # Update counters
         angle = last.get("angle", "")
@@ -2916,8 +3141,54 @@ viewer.addEventListener('mousedown', stopAuto);
         total = len(self.session_photos)
         self.photo_count_label.configure(text=f"{total} รูป")
         self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
+        self._update_undo_btn()
+        self._save_session()
 
-        self.log(f"   เลิกทำ: {last['filename']} -> _trash/ (ย้าย {moved} ไฟล์)", "warning")
+        remaining = len(self._undo_stack)
+        self.log(
+            f"   เลิกทำ: {last['filename']} -> _trash/ (ย้าย {moved} ไฟล์)"
+            + (f", เหลือ {remaining} รายการ" if remaining else ""),
+            "warning",
+        )
+
+    # =========================================================================
+    # STARTUP CHECKS (Phase 3)
+    # =========================================================================
+    def _startup_checks(self):
+        """ตรวจสอบ config ตอนเปิดแอป — watermark path, disk space."""
+        # 1. ตรวจสอบ watermark path
+        wm_path = self.config.get("watermark_path", "")
+        if wm_path and not os.path.exists(wm_path):
+            self.log(f"⚠ ไฟล์ลายน้ำไม่พบ: {wm_path}", "warning")
+            messagebox.showwarning(
+                "ไฟล์ลายน้ำหายไป",
+                f"ไม่พบไฟล์ลายน้ำ:\n{wm_path}\n\n"
+                "กรุณาตั้งค่าใหม่ใน ตั้งค่า > ลายน้ำ",
+            )
+
+        # 2. ตรวจสอบพื้นที่ดิสก์ output folder
+        output_root = self.config.get("output_folder", "")
+        if output_root:
+            self._check_disk_space(output_root, warn_only=True)
+
+    def _check_disk_space(self, path: str, warn_only: bool = False) -> bool:
+        """ตรวจสอบพื้นที่ดิสก์ คืน True ถ้าพื้นที่เพียงพอ (>500 MB)."""
+        try:
+            stat = shutil.disk_usage(path)
+            free_mb = stat.free / (1024 * 1024)
+            free_gb = free_mb / 1024
+
+            if free_mb < 500:
+                msg = f"พื้นที่ดิสก์เหลือน้อย: {free_mb:.0f} MB"
+                self.log(f"⚠ {msg}", "error")
+                if not warn_only:
+                    messagebox.showerror("พื้นที่ดิสก์ไม่เพียงพอ", msg + "\n\nกรุณาเพิ่มพื้นที่ก่อนดำเนินการต่อ")
+                return False
+            elif free_gb < 2:
+                self.log(f"⚠ พื้นที่ดิสก์เหลือ {free_gb:.1f} GB — เหลือน้อย", "warning")
+            return True
+        except OSError:
+            return True  # ไม่สามารถตรวจสอบได้ ถือว่าผ่าน
 
     # =========================================================================
     # CLOSE
@@ -2926,6 +3197,8 @@ viewer.addEventListener('mousedown', stopAuto);
         self._save_session()
         self.stop_watching()
         self.processor.stop()
+        if self.observer:
+            self.observer.join(timeout=5)  # Phase 3: timeout ป้องกัน hang
         self.destroy()
 
 

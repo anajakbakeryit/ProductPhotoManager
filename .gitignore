@@ -22,5 +22,15 @@ Desktop.ini
 # Session/state
 session_state.json
 
+# Log files (rotating, Phase 6)
+app.log
+app.log.*
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 # Build output
 Output/

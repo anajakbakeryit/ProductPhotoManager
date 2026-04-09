@@ -1,16 +1,29 @@
-"""Generate multi-resolution 360 viewer with inertia from existing images."""
+"""Generate multi-resolution 360 viewer with inertia from existing images.
+
+Usage:
+    python gen_viewer.py <base_dir> <barcode>
+    python gen_viewer.py  (interactive prompts)
+
+Example:
+    python gen_viewer.py "C:/output/360/SKU001" SKU001
+"""
 import json
 import os
+import sys
 
-base_dir = r"C:\Users\ParkBakery\Desktop\TestOutputFolder\360\box3"
-barcode = "box3"
 
-with open(os.path.join(base_dir, "_size_map.json"), "r") as f:
-    size_map = json.load(f)
+def generate_viewer(base_dir: str, barcode: str) -> str:
+    """Generate viewer.html in base_dir. Returns path to generated file."""
+    size_map_path = os.path.join(base_dir, "_size_map.json")
+    if not os.path.exists(size_map_path):
+        raise FileNotFoundError(f"ไม่พบ _size_map.json ใน: {base_dir}")
 
-n_frames = len(size_map["M"])
+    with open(size_map_path, "r") as f:
+        size_map = json.load(f)
 
-html = """<!DOCTYPE html>
+    n_frames = len(size_map["M"])
+
+    html = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -74,7 +87,6 @@ let curSize = 'L';
 let SRC = SIZE_MAP[curSize];
 const N = SRC.length;
 
-// Canvas size — auto-adapts to image aspect ratio
 const MAX_CW = 900;
 let CW = MAX_CW, CH = MAX_CW;
 let aspectDetected = false;
@@ -90,7 +102,6 @@ const zLabel = document.getElementById('zl');
 
 cv.width = CW; cv.height = CH;
 
-// ── Preload frames per size ──
 let frames = new Array(N);
 const dots = [];
 const frameCache = {};
@@ -151,7 +162,6 @@ function loadSize(sz, onDone) {
 
 loadSize('L', function() { draw(); });
 
-// ── Resolution switcher ──
 var resButtons = document.querySelectorAll('.res-btn');
 resButtons.forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -165,7 +175,6 @@ resButtons.forEach(function(btn) {
     });
 });
 
-// ── State ──
 var cur = 0, zoom = 1, panX = 0, panY = 0;
 var dirty = true;
 
@@ -175,7 +184,6 @@ function draw() {
     ctx.clearRect(0, 0, CW, CH);
     ctx.setTransform(zoom, 0, 0, zoom, panX, panY);
     var f = frames[cur];
-    // Fill canvas completely — no letterboxing
     var scale = Math.max(CW / f.width, CH / f.height);
     var w = f.width * scale, h = f.height * scale;
     var x = (CW - w) / 2, y = (CH - h) / 2;
@@ -194,7 +202,6 @@ function show(idx) {
     schedDraw();
 }
 
-// ── Zoom ──
 var ZMIN = 1, ZMAX = 5;
 
 function applyZoomUI() {
@@ -217,7 +224,6 @@ function zoomAt(nz, cx, cy) {
 
 function zoomCtr(nz) { zoomAt(nz, CW/2, CH/2); }
 
-// ── Inertia physics ──
 var dragging = false, panning = false, lastX = 0, lastY = 0;
 var velocity = 0, lastMoveTime = 0, accumDx = 0;
 var inertiaRaf = 0;
@@ -234,31 +240,19 @@ function startInertia() {
         if (Math.abs(velocity) < VEL_MIN) { velocity = 0; return; }
         accumDx += velocity;
         var steps = Math.trunc(accumDx);
-        if (steps !== 0) {
-            show(cur + steps);
-            accumDx -= steps;
-        }
+        if (steps !== 0) { show(cur + steps); accumDx -= steps; }
         inertiaRaf = requestAnimationFrame(tick);
     }
     accumDx = 0;
     inertiaRaf = requestAnimationFrame(tick);
 }
 
-// ── Auto-play ──
 var autoplay = null, autoDelay = null;
 function stopAuto() { clearTimeout(autoDelay); clearInterval(autoplay); autoplay = null; autoDelay = null; }
 
-// ── Mouse drag + inertia ──
 viewer.addEventListener('mousedown', function(e) {
-    stopInertia();
-    stopAuto();
-    if (zoom > 1) {
-        panning = true;
-    } else {
-        dragging = true;
-        velocity = 0;
-        lastMoveTime = performance.now();
-    }
+    stopInertia(); stopAuto();
+    if (zoom > 1) { panning = true; } else { dragging = true; velocity = 0; lastMoveTime = performance.now(); }
     lastX = e.clientX; lastY = e.clientY;
     e.preventDefault();
 });
@@ -270,30 +264,20 @@ window.addEventListener('mousemove', function(e) {
         var sens = Math.max(3, Math.round(CW / N));
         velocity = (dx / sens) * VEL_SCALE;
         velocity = Math.max(-4, Math.min(4, velocity));
-        if (Math.abs(dx) > sens) {
-            show(cur + (dx > 0 ? 1 : -1));
-            lastX = e.clientX;
-        }
+        if (Math.abs(dx) > sens) { show(cur + (dx > 0 ? 1 : -1)); lastX = e.clientX; }
         lastMoveTime = now;
     } else if (panning) {
-        panX += e.clientX - lastX;
-        panY += e.clientY - lastY;
+        panX += e.clientX - lastX; panY += e.clientY - lastY;
         lastX = e.clientX; lastY = e.clientY;
         applyZoomUI(); schedDraw();
     }
 });
 
 window.addEventListener('mouseup', function() {
-    if (dragging) {
-        dragging = false;
-        if (performance.now() - lastMoveTime < 100) {
-            startInertia();
-        }
-    }
+    if (dragging) { dragging = false; if (performance.now() - lastMoveTime < 100) startInertia(); }
     panning = false;
 });
 
-// ── Touch + inertia + pinch-zoom ──
 var pinching = false, pinchDist = 0, pinchZoom = 1;
 function getTouchDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
 function getTouchCenter(t) { return [(t[0].clientX + t[1].clientX) / 2, (t[0].clientY + t[1].clientY) / 2]; }
@@ -302,14 +286,11 @@ viewer.addEventListener('touchstart', function(e) {
     stopAuto(); stopInertia();
     if (e.touches.length === 2) {
         pinching = true; dragging = false; panning = false;
-        pinchDist = getTouchDist(e.touches);
-        pinchZoom = zoom;
+        pinchDist = getTouchDist(e.touches); pinchZoom = zoom;
         e.preventDefault(); return;
     }
     pinching = false;
-    if (zoom > 1) { panning = true; } else {
-        dragging = true; velocity = 0; lastMoveTime = performance.now();
-    }
+    if (zoom > 1) { panning = true; } else { dragging = true; velocity = 0; lastMoveTime = performance.now(); }
     lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
 }, { passive: false });
 
@@ -327,13 +308,11 @@ window.addEventListener('touchmove', function(e) {
     if (dragging) {
         var dx = e.touches[0].clientX - lastX;
         var sens = Math.max(3, Math.round(CW / N));
-        velocity = (dx / sens) * VEL_SCALE;
-        velocity = Math.max(-4, Math.min(4, velocity));
+        velocity = (dx / sens) * VEL_SCALE; velocity = Math.max(-4, Math.min(4, velocity));
         if (Math.abs(dx) > sens) { show(cur + (dx > 0 ? 1 : -1)); lastX = e.touches[0].clientX; }
         lastMoveTime = performance.now();
     } else if (panning) {
-        panX += e.touches[0].clientX - lastX;
-        panY += e.touches[0].clientY - lastY;
+        panX += e.touches[0].clientX - lastX; panY += e.touches[0].clientY - lastY;
         lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
         applyZoomUI(); schedDraw();
     }
@@ -347,7 +326,6 @@ window.addEventListener('touchend', function(e) {
     }
 });
 
-// ── Scroll zoom ──
 viewer.addEventListener('wheel', function(e) {
     e.preventDefault(); stopAuto(); stopInertia();
     var rect = cv.getBoundingClientRect();
@@ -357,7 +335,6 @@ viewer.addEventListener('wheel', function(e) {
            (e.clientY - rect.top) * (CH / rect.height));
 }, { passive: false });
 
-// ── Buttons ──
 document.getElementById('zi').addEventListener('click', function() { zoomCtr(zoom * 1.3); });
 document.getElementById('zo').addEventListener('click', function() { zoomCtr(zoom / 1.3); });
 slider.addEventListener('input', function() { zoomCtr(parseInt(slider.value) / 100); });
@@ -367,7 +344,6 @@ viewer.addEventListener('dblclick', function() {
     applyZoomUI(); schedDraw();
 });
 
-// ── Keyboard ──
 window.addEventListener('keydown', function(e) {
     if (e.key === 'ArrowLeft') { stopInertia(); show(cur - 1); }
     else if (e.key === 'ArrowRight') { stopInertia(); show(cur + 1); }
@@ -380,7 +356,6 @@ window.addEventListener('keydown', function(e) {
     else if (e.key === '4') document.querySelector('[data-sz="OG"]').click();
 });
 
-// ── Auto-play hover ──
 viewer.addEventListener('mouseenter', function() {
     if (zoom <= 1 && !dragging && velocity === 0) {
         autoDelay = setTimeout(function() {
@@ -397,7 +372,34 @@ viewer.addEventListener('mousedown', stopAuto);
 </body>
 </html>"""
 
-viewer_path = os.path.join(base_dir, "viewer.html")
-with open(viewer_path, "w", encoding="utf-8") as f:
-    f.write(html)
-print(f"Viewer saved: {viewer_path}")
+    viewer_path = os.path.join(base_dir, "viewer.html")
+    with open(viewer_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    return viewer_path
+
+
+def main():
+    if len(sys.argv) == 3:
+        base_dir = sys.argv[1]
+        barcode = sys.argv[2]
+    elif len(sys.argv) == 1:
+        base_dir = input("ระบุ path โฟลเดอร์ 360 (เช่น C:/output/360/SKU001): ").strip()
+        barcode = input("ระบุบาร์โค้ด: ").strip()
+    else:
+        print("การใช้งาน: python gen_viewer.py <base_dir> <barcode>")
+        sys.exit(1)
+
+    if not os.path.isdir(base_dir):
+        print(f"ข้อผิดพลาด: ไม่พบโฟลเดอร์ '{base_dir}'")
+        sys.exit(1)
+
+    try:
+        out = generate_viewer(base_dir, barcode)
+        print(f"สร้าง viewer แล้ว: {out}")
+    except Exception as e:
+        print(f"ข้อผิดพลาด: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
