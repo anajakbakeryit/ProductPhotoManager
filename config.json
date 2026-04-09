@@ -1,0 +1,84 @@
+{
+  "watch_folder": "",
+  "output_folder": "",
+  "watermark_path": "",
+  "watermark_opacity": 40,
+  "watermark_scale": 20,
+  "watermark_position": "bottom-right",
+  "watermark_margin": 30,
+  "bg_color": [
+    255,
+    255,
+    255
+  ],
+  "image_extensions": [
+    ".jpg",
+    ".jpeg",
+    ".cr2",
+    ".cr3",
+    ".arw",
+    ".nef",
+    ".tif",
+    ".tiff",
+    ".png"
+  ],
+  "angles": [
+    {
+      "id": "front",
+      "label": "Front",
+      "label_th": "ด้านหน้า",
+      "key": "F1"
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "label_th": "ด้านหลัง",
+      "key": "F2"
+    },
+    {
+      "id": "left",
+      "label": "Left",
+      "label_th": "ด้านซ้าย",
+      "key": "F3"
+    },
+    {
+      "id": "right",
+      "label": "Right",
+      "label_th": "ด้านขวา",
+      "key": "F4"
+    },
+    {
+      "id": "top",
+      "label": "Top",
+      "label_th": "ด้านบน",
+      "key": "F5"
+    },
+    {
+      "id": "bottom",
+      "label": "Bottom",
+      "label_th": "ด้านล่าง",
+      "key": "F6"
+    },
+    {
+      "id": "detail",
+      "label": "Detail",
+      "label_th": "รายละเอียด",
+      "key": "F7"
+    },
+    {
+      "id": "package",
+      "label": "Package",
+      "label_th": "แพ็คเกจ",
+      "key": "F8"
+    }
+  ],
+  "auto_increment": true,
+  "copy_mode": false,
+  "enable_cutout": true,
+  "enable_watermark": true,
+  "enable_wm_original": true,
+  "spin360_total": 24,
+  "video360_remove_bg": false,
+  "export_folder": "",
+  "import_folder": ""
+}
