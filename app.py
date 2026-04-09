@@ -330,7 +330,7 @@ class ImageProcessor(threading.Thread):
             try:
                 self._process(task)
             except Exception as e:
-                self.app.after(0, self.app.log, f"   Processing error: {e}", "error")
+                self.app.after(0, self.app.log, f"   ประมวลผลผิดพลาด: {e}", "error")
 
     def stop(self):
         self._running = False
@@ -349,7 +349,7 @@ class ImageProcessor(threading.Thread):
         if config.get("enable_wm_original", True):
             if has_wm_file:
                 self.app.after(0, self.app.log,
-                               f"   Adding watermark (original): {task['filename']}...", "dim")
+                               f"   กำลังใส่ลายน้ำ (ต้นฉบับ): {task['filename']}...", "dim")
 
                 orig_img = _to_srgb(Image.open(original_path)).convert("RGBA")
                 wm_img = self._add_watermark(orig_img, watermark_path, config)
@@ -367,16 +367,16 @@ class ImageProcessor(threading.Thread):
                 save_multi_resolution(final, wm_orig_dir, base_name)
 
                 self.app.after(0, self.app.log,
-                               f"   \u2713 WM Original: watermarked_original/{barcode}/ (S/M/L/OG)",
+                               f"   \u2713 ลายน้ำต้นฉบับ: watermarked_original/{barcode}/ (S/M/L/OG)",
                                "success")
             else:
                 self.app.after(0, self.app.log,
-                               "   No watermark file set, skipping WM Original", "warning")
+                               "   ยังไม่ได้ตั้งค่าไฟล์ลายน้ำ ข้ามลายน้ำต้นฉบับ", "warning")
 
         # ── Step 2: Remove background ──
         if config.get("enable_cutout", True):
             self.app.after(0, self.app.log,
-                           f"   Removing background: {task['filename']}...", "dim")
+                           f"   กำลังลบพื้นหลัง: {task['filename']}...", "dim")
 
             img = _to_srgb(Image.open(original_path)).convert("RGBA")
 
@@ -385,7 +385,7 @@ class ImageProcessor(threading.Thread):
             else:
                 cutout_img = img
                 self.app.after(0, self.app.log,
-                               "   rembg not installed, skipping BG removal", "warning")
+                               "   ยังไม่ได้ติดตั้ง rembg ข้ามการลบพื้นหลัง", "warning")
 
             # Save cutout - multi-resolution only (no root file)
             cutout_dir = os.path.join(output_root, "cutout", barcode)
@@ -394,7 +394,7 @@ class ImageProcessor(threading.Thread):
             save_multi_resolution(cutout_img, cutout_dir, base_name, ext=".png", is_png=True)
 
             self.app.after(0, self.app.log,
-                           f"   \u2713 Cutout: cutout/{barcode}/ (S/M/L/OG)", "success")
+                           f"   \u2713 ลบพื้นหลัง: cutout/{barcode}/ (S/M/L/OG)", "success")
 
             # ── Step 3: Add watermark on the cutout ──
             if config.get("enable_watermark", True):
@@ -413,11 +413,11 @@ class ImageProcessor(threading.Thread):
                     save_multi_resolution(final, wm_dir, base_name)
 
                     self.app.after(0, self.app.log,
-                                   f"   \u2713 Watermarked: watermarked/{barcode}/ (S/M/L/OG)",
+                                   f"   \u2713 ลายน้ำ: watermarked/{barcode}/ (S/M/L/OG)",
                                    "success")
                 else:
                     self.app.after(0, self.app.log,
-                                   "   No watermark file set, skipping", "warning")
+                                   "   ยังไม่ได้ตั้งค่าไฟล์ลายน้ำ ข้าม", "warning")
 
         # Update pipeline status
         self.app.after(0, self.app._on_pipeline_done)
@@ -508,7 +508,7 @@ class ProductPhotoApp(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("Product Photo Manager")
+        self.title("ระบบจัดการถ่ายภาพสินค้า")
         self.geometry("1050x850")
         self.configure(bg=C["bg"])
         self.minsize(950, 750)
@@ -574,25 +574,25 @@ class ProductPhotoApp(tk.Tk):
         header = tk.Frame(main, bg=C["bg"])
         header.pack(fill="x", pady=(0, 12))
 
-        tk.Label(header, text="PRODUCT PHOTO MANAGER",
+        tk.Label(header, text="ระบบจัดการถ่ายภาพสินค้า",
                  font=("Segoe UI Semibold", 16), fg=C["text"], bg=C["bg"]
                  ).pack(side="left")
 
         self.session_badge = tk.Label(
-            header, text="  SESSION: 0 photos  ",
+            header, text="  เซสชัน: 0 รูป  ",
             font=("Segoe UI", 9), fg=C["text_dim"], bg=C["tag_bg"], padx=10, pady=3
         )
         self.session_badge.pack(side="right")
 
         tk.Button(
-            header, text="SETTINGS", font=("Segoe UI Semibold", 9),
+            header, text="ตั้งค่า", font=("Segoe UI Semibold", 9),
             fg=C["text_dim"], bg=C["surface2"], activebackground=C["btn_hover"],
             activeforeground=C["text"], relief="flat", cursor="hand2",
             padx=10, pady=2, command=self._open_settings
         ).pack(side="right", padx=(0, 4))
 
         self.import_btn = tk.Button(
-            header, text="IMPORT", font=("Segoe UI Semibold", 9),
+            header, text="นำเข้า", font=("Segoe UI Semibold", 9),
             fg=C["green"], bg=C["surface2"], activebackground=C["btn_hover"],
             activeforeground=C["green"], relief="flat", cursor="hand2",
             padx=10, pady=2, command=self.import_photos
@@ -600,7 +600,7 @@ class ProductPhotoApp(tk.Tk):
         self.import_btn.pack(side="right", padx=(0, 4))
 
         self.export_btn = tk.Button(
-            header, text="EXPORT", font=("Segoe UI Semibold", 9),
+            header, text="ส่งออก", font=("Segoe UI Semibold", 9),
             fg=C["accent"], bg=C["surface2"], activebackground=C["btn_hover"],
             activeforeground=C["accent"], relief="flat", cursor="hand2",
             padx=10, pady=2, command=self.export_report
@@ -608,7 +608,7 @@ class ProductPhotoApp(tk.Tk):
         self.export_btn.pack(side="right", padx=(0, 4))
 
         self.undo_btn = tk.Button(
-            header, text="UNDO", font=("Segoe UI Semibold", 9),
+            header, text="เลิกทำ", font=("Segoe UI Semibold", 9),
             fg=C["red"], bg=C["surface2"], activebackground=C["btn_hover"],
             activeforeground=C["red"], relief="flat", cursor="hand2",
             padx=10, pady=2, command=self.undo_last_photo
@@ -624,11 +624,11 @@ class ProductPhotoApp(tk.Tk):
                                  highlightbackground=C["border"], highlightthickness=1)
         folders_panel.pack(side="left", fill="both", expand=True, padx=(0, 6))
 
-        tk.Label(folders_panel, text="FOLDERS",
+        tk.Label(folders_panel, text="โฟลเดอร์",
                  font=("Segoe UI Semibold", 9), fg=C["text_dim"], bg=C["surface"]
                  ).grid(row=0, column=0, sticky="w", columnspan=3, pady=(0, 8))
 
-        tk.Label(folders_panel, text="Watch", font=("Segoe UI", 10),
+        tk.Label(folders_panel, text="ต้นทาง", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"]).grid(row=1, column=0, sticky="w", padx=(0, 8))
         self.watch_folder_var = tk.StringVar(value=self.config["watch_folder"])
         tk.Entry(folders_panel, textvariable=self.watch_folder_var, font=("Segoe UI", 10),
@@ -636,7 +636,7 @@ class ProductPhotoApp(tk.Tk):
                  highlightthickness=0).grid(row=1, column=1, sticky="ew", padx=(0, 6), ipady=3)
         self._make_browse_btn(folders_panel, self.browse_watch).grid(row=1, column=2)
 
-        tk.Label(folders_panel, text="Output", font=("Segoe UI", 10),
+        tk.Label(folders_panel, text="ปลายทาง", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"]).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
         self.output_folder_var = tk.StringVar(value=self.config["output_folder"])
         tk.Entry(folders_panel, textvariable=self.output_folder_var, font=("Segoe UI", 10),
@@ -652,7 +652,7 @@ class ProductPhotoApp(tk.Tk):
         status_panel.pack(side="right", fill="y", padx=(6, 0))
         status_panel.pack_propagate(False)
 
-        tk.Label(status_panel, text="STATUS", font=("Segoe UI Semibold", 9),
+        tk.Label(status_panel, text="สถานะ", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(anchor="w")
 
         si = tk.Frame(status_panel, bg=C["surface"])
@@ -660,12 +660,12 @@ class ProductPhotoApp(tk.Tk):
         self.status_dot = tk.Label(si, text="\u25cf", font=("Segoe UI", 14),
                                    fg=C["red"], bg=C["surface"])
         self.status_dot.pack(side="left")
-        self.status_text = tk.Label(si, text="  Stopped", font=("Segoe UI Semibold", 11),
+        self.status_text = tk.Label(si, text="  หยุดอยู่", font=("Segoe UI Semibold", 11),
                                     fg=C["red"], bg=C["surface"])
         self.status_text.pack(side="left")
 
         self.watch_btn = tk.Button(
-            status_panel, text="START", font=("Segoe UI Semibold", 11),
+            status_panel, text="เริ่ม", font=("Segoe UI Semibold", 11),
             fg=C["bg"], bg=C["green"], activebackground=C["accent_hover"],
             relief="flat", cursor="hand2", padx=20, pady=4, command=self.toggle_watching
         )
@@ -679,12 +679,12 @@ class ProductPhotoApp(tk.Tk):
         pp_header = tk.Frame(pipeline_section, bg=C["surface"])
         pp_header.pack(fill="x", pady=(0, 10))
 
-        tk.Label(pp_header, text="POST-PROCESSING PIPELINE",
+        tk.Label(pp_header, text="ขั้นตอนประมวลผล",
                  font=("Segoe UI Semibold", 9), fg=C["text_dim"], bg=C["surface"]
                  ).pack(side="left")
 
         self.pipeline_badge = tk.Label(
-            pp_header, text="  IDLE  ", font=("Segoe UI", 8),
+            pp_header, text="  ว่าง  ", font=("Segoe UI", 8),
             fg=C["text_dim"], bg=C["tag_bg"], padx=6, pady=1
         )
         self.pipeline_badge.pack(side="right")
@@ -693,22 +693,22 @@ class ProductPhotoApp(tk.Tk):
         flow_frame = tk.Frame(pipeline_section, bg=C["surface"])
         flow_frame.pack(fill="x", pady=(0, 4))
 
-        self._make_pipeline_step(flow_frame, "original/", "Original", C["text_dim"], 0)
+        self._make_pipeline_step(flow_frame, "original/", "ต้นฉบับ", C["text_dim"], 0)
         tk.Label(flow_frame, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
                  bg=C["surface"]).grid(row=0, column=1, padx=6)
-        self._make_pipeline_step(flow_frame, "cutout/", "Remove BG", C["orange"], 2)
+        self._make_pipeline_step(flow_frame, "cutout/", "ลบพื้นหลัง", C["orange"], 2)
         tk.Label(flow_frame, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
                  bg=C["surface"]).grid(row=0, column=3, padx=6)
-        self._make_pipeline_step(flow_frame, "watermarked/", "BG Removed + WM", C["purple"], 4)
+        self._make_pipeline_step(flow_frame, "watermarked/", "ลบพื้นหลัง + ลายน้ำ", C["purple"], 4)
 
         # Pipeline flow diagram - Row 2: watermark-only pipeline
         flow_frame2 = tk.Frame(pipeline_section, bg=C["surface"])
         flow_frame2.pack(fill="x", pady=(4, 10))
 
-        self._make_pipeline_step(flow_frame2, "original/", "Original", C["text_dim"], 0)
+        self._make_pipeline_step(flow_frame2, "original/", "ต้นฉบับ", C["text_dim"], 0)
         tk.Label(flow_frame2, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
                  bg=C["surface"]).grid(row=0, column=1, padx=6)
-        self._make_pipeline_step(flow_frame2, "watermarked_original/", "WM Only (Keep BG)", C["green"], 2)
+        self._make_pipeline_step(flow_frame2, "watermarked_original/", "ลายน้ำอย่างเดียว", C["green"], 2)
 
         # Pipeline settings row
         settings_row = tk.Frame(pipeline_section, bg=C["surface"])
@@ -716,7 +716,7 @@ class ProductPhotoApp(tk.Tk):
 
         # Cutout toggle
         self.cutout_var = tk.BooleanVar(value=self.config.get("enable_cutout", True))
-        tk.Checkbutton(settings_row, text="Remove Background",
+        tk.Checkbutton(settings_row, text="ลบพื้นหลัง",
                        variable=self.cutout_var, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -725,7 +725,7 @@ class ProductPhotoApp(tk.Tk):
 
         # Watermark toggle (on cutout)
         self.wm_var = tk.BooleanVar(value=self.config.get("enable_watermark", True))
-        tk.Checkbutton(settings_row, text="WM + Cut BG",
+        tk.Checkbutton(settings_row, text="ลายน้ำ + ลบพื้นหลัง",
                        variable=self.wm_var, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -734,7 +734,7 @@ class ProductPhotoApp(tk.Tk):
 
         # Watermark on original (no BG removal)
         self.wm_orig_var = tk.BooleanVar(value=self.config.get("enable_wm_original", True))
-        tk.Checkbutton(settings_row, text="WM Only (Keep BG)",
+        tk.Checkbutton(settings_row, text="ลายน้ำอย่างเดียว",
                        variable=self.wm_orig_var, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -746,14 +746,14 @@ class ProductPhotoApp(tk.Tk):
             tk.Label(settings_row, text="\u2713 rembg", font=("Consolas", 9),
                      fg=C["green"], bg=C["surface"]).pack(side="right")
         else:
-            tk.Label(settings_row, text="\u2717 rembg not installed", font=("Consolas", 9),
+            tk.Label(settings_row, text="\u2717 ยังไม่ได้ติดตั้ง rembg", font=("Consolas", 9),
                      fg=C["red"], bg=C["surface"]).pack(side="right")
 
         # Watermark file row
         wm_row = tk.Frame(pipeline_section, bg=C["surface"])
         wm_row.pack(fill="x", pady=(8, 0))
 
-        tk.Label(wm_row, text="Watermark", font=("Segoe UI", 10),
+        tk.Label(wm_row, text="ลายน้ำ", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 8))
 
         self.wm_path_var = tk.StringVar(value=self.config.get("watermark_path", ""))
@@ -767,7 +767,7 @@ class ProductPhotoApp(tk.Tk):
         wm_opt = tk.Frame(pipeline_section, bg=C["surface"])
         wm_opt.pack(fill="x", pady=(6, 0))
 
-        tk.Label(wm_opt, text="Opacity", font=("Segoe UI", 9),
+        tk.Label(wm_opt, text="ความโปร่งใส", font=("Segoe UI", 9),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.opacity_var = tk.IntVar(value=self.config.get("watermark_opacity", 40))
         opacity_scale = tk.Scale(wm_opt, from_=10, to=100, orient="horizontal",
@@ -777,7 +777,7 @@ class ProductPhotoApp(tk.Tk):
                                  command=lambda v: self._save_wm_settings())
         opacity_scale.pack(side="left", padx=(0, 16))
 
-        tk.Label(wm_opt, text="Size %", font=("Segoe UI", 9),
+        tk.Label(wm_opt, text="ขนาด %", font=("Segoe UI", 9),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.wm_scale_var = tk.IntVar(value=self.config.get("watermark_scale", 20))
         scale_scale = tk.Scale(wm_opt, from_=5, to=50, orient="horizontal",
@@ -787,7 +787,7 @@ class ProductPhotoApp(tk.Tk):
                                command=lambda v: self._save_wm_settings())
         scale_scale.pack(side="left", padx=(0, 16))
 
-        tk.Label(wm_opt, text="Position", font=("Segoe UI", 9),
+        tk.Label(wm_opt, text="ตำแหน่ง", font=("Segoe UI", 9),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.position_var = tk.StringVar(value=self.config.get("watermark_position", "bottom-right"))
         pos_menu = ttk.Combobox(wm_opt, textvariable=self.position_var, width=12,
@@ -803,7 +803,7 @@ class ProductPhotoApp(tk.Tk):
 
         bc_top = tk.Frame(barcode_section, bg=C["surface"])
         bc_top.pack(fill="x")
-        tk.Label(bc_top, text="SCAN BARCODE", font=("Segoe UI Semibold", 9),
+        tk.Label(bc_top, text="สแกนบาร์โค้ด", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(side="left")
         self.product_tag = tk.Label(bc_top, text="", font=("Segoe UI", 9),
                                     fg=C["accent"], bg=C["tag_bg"], padx=8, pady=2)
@@ -828,7 +828,7 @@ class ProductPhotoApp(tk.Tk):
         self.product_info_frame = tk.Frame(barcode_section, bg=C["surface"])
         self.product_info_frame.pack(fill="x", pady=(8, 0))
         self.current_state_label = tk.Label(
-            self.product_info_frame, text="Waiting for barcode scan...",
+            self.product_info_frame, text="รอสแกนบาร์โค้ด...",
             font=("Segoe UI", 12), fg=C["text_muted"], bg=C["surface"], anchor="w"
         )
         self.current_state_label.pack(side="left")
@@ -840,7 +840,7 @@ class ProductPhotoApp(tk.Tk):
 
         preview_header = tk.Frame(preview_section, bg=C["surface"])
         preview_header.pack(fill="x", pady=(0, 6))
-        tk.Label(preview_header, text="LAST CAPTURE", font=("Segoe UI Semibold", 9),
+        tk.Label(preview_header, text="ภาพล่าสุด", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(side="left")
         self.preview_info_label = tk.Label(
             preview_header, text="", font=("Segoe UI", 9),
@@ -862,7 +862,7 @@ class ProductPhotoApp(tk.Tk):
 
         angle_header = tk.Frame(angle_section, bg=C["surface"])
         angle_header.pack(fill="x", pady=(0, 10))
-        tk.Label(angle_header, text="SHOOTING ANGLE", font=("Segoe UI Semibold", 9),
+        tk.Label(angle_header, text="มุมถ่ายภาพ", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(side="left")
         tk.Label(angle_header, text="F1 - F8", font=("Consolas", 9),
                  fg=C["text_muted"], bg=C["tag_bg"], padx=6, pady=1).pack(side="right")
@@ -905,11 +905,11 @@ class ProductPhotoApp(tk.Tk):
 
         spin_header = tk.Frame(spin_section, bg=C["surface"])
         spin_header.pack(fill="x", pady=(0, 8))
-        tk.Label(spin_header, text="360\u00b0 SPIN MODE", font=("Segoe UI Semibold", 9),
+        tk.Label(spin_header, text="โหมดหมุน 360\u00b0", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(side="left")
 
         self.spin_mode_badge = tk.Label(
-            spin_header, text="  OFF  ", font=("Segoe UI", 8),
+            spin_header, text="  ปิด  ", font=("Segoe UI", 8),
             fg=C["text_dim"], bg=C["tag_bg"], padx=6, pady=1
         )
         self.spin_mode_badge.pack(side="right")
@@ -918,7 +918,7 @@ class ProductPhotoApp(tk.Tk):
         spin_controls.pack(fill="x")
 
         self.spin_toggle_btn = tk.Button(
-            spin_controls, text="START 360\u00b0",
+            spin_controls, text="เริ่ม 360\u00b0",
             font=("Segoe UI Semibold", 11), fg="#fff", bg="#e67e22",
             activebackground="#d35400", relief="flat", cursor="hand2",
             padx=20, pady=6, command=self.toggle_360_mode
@@ -926,7 +926,7 @@ class ProductPhotoApp(tk.Tk):
         self.spin_toggle_btn.pack(side="left", padx=(0, 16))
 
         self.video360_btn = tk.Button(
-            spin_controls, text="VIDEO → 360°",
+            spin_controls, text="วิดีโอ → 360°",
             font=("Segoe UI Semibold", 11), fg="#fff", bg="#8e44ad",
             activebackground="#7d3c98", relief="flat", cursor="hand2",
             padx=20, pady=6, command=self._video_to_360
@@ -943,7 +943,7 @@ class ProductPhotoApp(tk.Tk):
             command=self._on_toggle_video360_bg
         ).pack(side="left", padx=(0, 16))
 
-        tk.Label(spin_controls, text="Shots:", font=("Segoe UI", 10),
+        tk.Label(spin_controls, text="จำนวนช็อต:", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.spin_total_var = tk.IntVar(value=self.config.get("spin360_total", 24))
         spin_total_menu = ttk.Combobox(spin_controls, textvariable=self.spin_total_var,
@@ -974,10 +974,10 @@ class ProductPhotoApp(tk.Tk):
 
         log_header = tk.Frame(log_section, bg=C["surface"])
         log_header.pack(fill="x", pady=(0, 8))
-        tk.Label(log_header, text="ACTIVITY LOG", font=("Segoe UI Semibold", 9),
+        tk.Label(log_header, text="บันทึกกิจกรรม", font=("Segoe UI Semibold", 9),
                  fg=C["text_dim"], bg=C["surface"]).pack(side="left")
         self.photo_count_label = tk.Label(
-            log_header, text="0 photos", font=("Segoe UI", 9),
+            log_header, text="0 รูป", font=("Segoe UI", 9),
             fg=C["green"], bg=C["green_dim"], padx=8, pady=2
         )
         self.photo_count_label.pack(side="right")
@@ -1028,14 +1028,14 @@ class ProductPhotoApp(tk.Tk):
     # SETTINGS HANDLERS
     # =========================================================================
     def browse_watch(self):
-        folder = filedialog.askdirectory(title="Select Watch Folder")
+        folder = filedialog.askdirectory(title="เลือกโฟลเดอร์ต้นทาง")
         if folder:
             self.watch_folder_var.set(folder)
             self.config["watch_folder"] = folder
             save_config(self.config)
 
     def browse_output(self):
-        folder = filedialog.askdirectory(title="Select Output Folder")
+        folder = filedialog.askdirectory(title="เลือกโฟลเดอร์ปลายทาง")
         if folder:
             self.output_folder_var.set(folder)
             self.config["output_folder"] = folder
@@ -1043,14 +1043,14 @@ class ProductPhotoApp(tk.Tk):
 
     def browse_watermark(self):
         path = filedialog.askopenfilename(
-            title="Select Watermark Image (PNG with transparency)",
+            title="เลือกไฟล์ลายน้ำ (PNG โปร่งใส)",
             filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
         )
         if path:
             self.wm_path_var.set(path)
             self.config["watermark_path"] = path
             save_config(self.config)
-            self.log(f"Watermark set: {os.path.basename(path)}", "info")
+            self.log(f"ตั้งค่าลายน้ำ: {os.path.basename(path)}", "info")
 
     def _on_toggle_cutout(self):
         self.config["enable_cutout"] = self.cutout_var.get()
@@ -1086,24 +1086,24 @@ class ProductPhotoApp(tk.Tk):
         """Open a video file and extract evenly-spaced frames to create 360° viewer."""
         if not HAS_CV2:
             messagebox.showerror(
-                "OpenCV Required",
-                "ฟีเจอร์ Video → 360° ต้องติดตั้ง opencv-python\n\n"
+                "ต้องติดตั้ง OpenCV",
+                "ฟีเจอร์ วิดีโอ → 360° ต้องติดตั้ง opencv-python\n\n"
                 "pip install opencv-python"
             )
             return
 
         if not self.current_barcode:
-            messagebox.showwarning("Warning", "Scan a barcode first!")
+            messagebox.showwarning("คำเตือน", "กรุณาสแกนบาร์โค้ดก่อน!")
             return
 
         output_root = self.config.get("output_folder", "")
         if not output_root:
-            messagebox.showerror("Error", "Please set Output Folder first!")
+            messagebox.showerror("ข้อผิดพลาด", "กรุณาตั้งค่าโฟลเดอร์ปลายทางก่อน!")
             return
 
         # Open file dialog to pick video
         video_path = filedialog.askopenfilename(
-            title="Select Video for 360° (เลือกวิดีโอสำหรับ 360°)",
+            title="เลือกวิดีโอสำหรับ 360°",
             filetypes=[
                 ("Video files", "*.mp4 *.mov *.avi *.mkv *.wmv *.flv *.webm"),
                 ("MP4", "*.mp4"),
@@ -1119,16 +1119,16 @@ class ProductPhotoApp(tk.Tk):
         total_frames = self.spin_total_var.get()
         remove_bg = self.video360_bg_var.get()
 
-        mode_str = " + ตัด BG" if remove_bg else ""
-        self.log(f"── Video → 360°{mode_str}: {os.path.basename(video_path)}", "info")
-        self.log(f"   Barcode: {barcode} | Extracting {total_frames} frames...", "info")
+        mode_str = " + ลบพื้นหลัง" if remove_bg else ""
+        self.log(f"── วิดีโอ → 360°{mode_str}: {os.path.basename(video_path)}", "info")
+        self.log(f"   บาร์โค้ด: {barcode} | กำลังแยก {total_frames} เฟรม...", "info")
 
         if remove_bg and not HAS_REMBG:
-            self.log("   ⚠ rembg not installed — skipping BG removal", "warning")
+            self.log("   ⚠ ยังไม่ได้ติดตั้ง rembg — ข้ามการลบพื้นหลัง", "warning")
             remove_bg = False
 
         # Disable button during processing
-        self.video360_btn.configure(state="disabled", text="Processing...", bg=C["text_muted"])
+        self.video360_btn.configure(state="disabled", text="กำลังประมวลผล...", bg=C["text_muted"])
 
         bg_color = tuple(self.config.get("bg_color", [255, 255, 255]))
 
@@ -1146,7 +1146,7 @@ class ProductPhotoApp(tk.Tk):
         try:
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                self.after(0, lambda: self.log("   ✗ Cannot open video file!", "error"))
+                self.after(0, lambda: self.log("   ✗ ไม่สามารถเปิดไฟล์วิดีโอ!", "error"))
                 self.after(0, self._video360_btn_reset)
                 return
 
@@ -1250,7 +1250,7 @@ class ProductPhotoApp(tk.Tk):
                 frame = collected_frames.get(frame_idx)
                 if frame is None:
                     self.after(0, lambda n=frame_num: self.log(
-                        f"   Could not read frame {n}", "warning"
+                        f"   ไม่สามารถอ่านเฟรม {n}", "warning"
                     ))
                     continue
 
@@ -1334,21 +1334,21 @@ class ProductPhotoApp(tk.Tk):
                 step = 1 if remove_bg else 4
                 if frame_num % step == 0 or frame_num == total_frames:
                     pct = int(frame_num / total_frames * 100)
-                    bg_tag = " [BG removed]" if remove_bg else ""
+                    bg_tag = " [ลบพื้นหลัง]" if remove_bg else ""
                     self.after(0, lambda p=pct, n=frame_num, t=bg_tag: self.log(
-                        f"   Frame {n}/{total_frames} ({p}%){t}", "dim"
+                        f"   เฟรม {n}/{total_frames} ({p}%){t}", "dim"
                     ))
 
             cap.release()
 
             if not base_names:
-                self.after(0, lambda: self.log("   ✗ No frames extracted from video!", "error"))
+                self.after(0, lambda: self.log("   ✗ ไม่สามารถแยกเฟรมจากวิดีโอได้!", "error"))
                 self.after(0, self._video360_btn_reset)
                 return
 
-            bg_msg = " + BG removed" if remove_bg else ""
+            bg_msg = " + ลบพื้นหลัง" if remove_bg else ""
             self.after(0, lambda: self.log(
-                f"   ✓ Extracted {extracted} frames (S/M/L/OG){bg_msg}", "success"
+                f"   ✓ แยกเฟรมสำเร็จ {extracted} เฟรม (S/M/L/OG){bg_msg}", "success"
             ))
 
             # Build size_map and save _size_map.json
@@ -1373,13 +1373,13 @@ class ProductPhotoApp(tk.Tk):
             self.after(0, self._video360_btn_reset)
 
         except Exception as e:
-            self.after(0, lambda: self.log(f"   ✗ Video → 360° FAILED: {e}", "error"))
+            self.after(0, lambda: self.log(f"   ✗ วิดีโอ → 360° ล้มเหลว: {e}", "error"))
             self.after(0, self._video360_btn_reset)
 
     def _video360_btn_reset(self):
         """Reset the VIDEO → 360° button back to normal state."""
         self.video360_btn.configure(
-            state="normal", text="VIDEO → 360°", bg="#8e44ad"
+            state="normal", text="วิดีโอ → 360°", bg="#8e44ad"
         )
 
     # =========================================================================
@@ -1387,7 +1387,7 @@ class ProductPhotoApp(tk.Tk):
     # =========================================================================
     def toggle_360_mode(self):
         if not self.current_barcode:
-            messagebox.showwarning("Warning", "Scan a barcode first!")
+            messagebox.showwarning("คำเตือน", "กรุณาสแกนบาร์โค้ดก่อน!")
             return
 
         if self.is_360_mode:
@@ -1402,8 +1402,8 @@ class ProductPhotoApp(tk.Tk):
         total = self.spin_total_var.get()
 
         # Update UI
-        self.spin_toggle_btn.configure(text="STOP 360\u00b0", bg=C["red"])
-        self.spin_mode_badge.configure(text="  ACTIVE  ", fg=C["orange"])
+        self.spin_toggle_btn.configure(text="หยุด 360\u00b0", bg=C["red"])
+        self.spin_mode_badge.configure(text="  ทำงาน  ", fg=C["orange"])
         self.spin_progress_label.configure(
             text=f"0 / {total}", fg=C["yellow"]
         )
@@ -1415,10 +1415,10 @@ class ProductPhotoApp(tk.Tk):
             frame.configure(bg=C["surface2"])
 
         self.current_state_label.configure(
-            text=f"{self.current_barcode}  \u2014  360\u00b0 Mode  \u2014  0/{total}",
+            text=f"{self.current_barcode}  \u2014  โหมด 360\u00b0  \u2014  0/{total}",
             fg=C["orange"]
         )
-        self.log(f"   360\u00b0 Start: {self.current_barcode} ({total} shots)", "info")
+        self.log(f"   360\u00b0 เริ่ม: {self.current_barcode} ({total} ช็อต)", "info")
         self.barcode_entry.focus_set()
 
     def _stop_360_mode(self):
@@ -1427,8 +1427,8 @@ class ProductPhotoApp(tk.Tk):
         count = self.spin360_counter
 
         # Update UI
-        self.spin_toggle_btn.configure(text="START 360\u00b0", bg="#e67e22")
-        self.spin_mode_badge.configure(text="  OFF  ", fg=C["text_dim"])
+        self.spin_toggle_btn.configure(text="เริ่ม 360\u00b0", bg="#e67e22")
+        self.spin_mode_badge.configure(text="  ปิด  ", fg=C["text_dim"])
 
         # Re-enable angle buttons
         for aid, (btn, frame, key_lbl, cnt_lbl) in self.angle_buttons.items():
@@ -1438,11 +1438,11 @@ class ProductPhotoApp(tk.Tk):
         self.current_angle = ""
 
         if count > 0:
-            self.log(f"   360\u00b0 Done: {count}/{total} shots", "info")
+            self.log(f"   360\u00b0 เสร็จ: {count}/{total} ช็อต", "info")
             # Generate HTML viewer in background thread (don't block UI)
             if count >= 2:
                 barcode = self.current_barcode  # capture before it changes
-                self.log(f"   \u23f3 Generating 360\u00b0 viewer...", "info")
+                self.log(f"   \u23f3 กำลังสร้าง 360\u00b0 viewer...", "info")
                 threading.Thread(
                     target=self._generate_360_viewer_bg,
                     args=(barcode, count),
@@ -1462,13 +1462,13 @@ class ProductPhotoApp(tk.Tk):
         self.spin_bar_fg.place(x=0, y=0, relheight=1.0, relwidth=progress)
 
         self.current_state_label.configure(
-            text=f"{self.current_barcode}  \u2014  360\u00b0 Mode  \u2014  {count}/{total}",
+            text=f"{self.current_barcode}  \u2014  โหมด 360\u00b0  \u2014  {count}/{total}",
             fg=C["green"] if count >= total else C["orange"]
         )
 
         # Auto-stop when complete
         if count >= total:
-            self.log(f"   360\u00b0 Complete! ({total} shots)", "success")
+            self.log(f"   360\u00b0 เสร็จสมบูรณ์! ({total} ช็อต)", "success")
             self._stop_360_mode()
 
     def _generate_360_viewer_bg(self, barcode, total_shots):
@@ -1476,7 +1476,7 @@ class ProductPhotoApp(tk.Tk):
         try:
             self._generate_360_viewer(barcode, total_shots)
         except Exception as e:
-            self.after(0, lambda: self.log(f"   \u2717 360\u00b0 Viewer FAILED: {e}", "error"))
+            self.after(0, lambda: self.log(f"   \u2717 360\u00b0 Viewer ล้มเหลว: {e}", "error"))
 
     def _generate_360_viewer(self, barcode, total_shots):
         """Generate an HTML file with interactive 360 spin viewer + multi-resolution.
@@ -1537,7 +1537,7 @@ class ProductPhotoApp(tk.Tk):
                         break
 
             if not src_path:
-                self.after(0, lambda i=i: self.log(f"   360 frame {i}: source not found", "warning"))
+                self.after(0, lambda i=i: self.log(f"   360 เฟรม {i}: ไม่พบไฟล์ต้นฉบับ", "warning"))
                 continue
 
             try:
@@ -1564,10 +1564,10 @@ class ProductPhotoApp(tk.Tk):
                 resized_count += 1
 
             except Exception as e:
-                self.after(0, lambda e=e, i=i: self.log(f"   360 resize error frame {i}: {e}", "warning"))
+                self.after(0, lambda e=e, i=i: self.log(f"   360 ปรับขนาดเฟรม {i} ผิดพลาด: {e}", "warning"))
 
         if not base_names:
-            self.after(0, lambda: self.log("   \u2717 No 360 images found to generate viewer", "warning"))
+            self.after(0, lambda: self.log("   \u2717 ไม่พบรูป 360 สำหรับสร้าง viewer", "warning"))
             return
 
         # Build JSON maps for each size
@@ -1970,9 +1970,9 @@ viewer.addEventListener('mousedown', stopAuto);
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        method = f"copied {copied_count}" if copied_count else f"resized {resized_count}"
+        method = f"คัดลอก {copied_count}" if copied_count else f"ปรับขนาด {resized_count}"
         self.after(0, lambda: self.log(
-            f"   \u2713 360 Viewer: 360/{barcode}/viewer.html ({n_frames} frames, {method})", "success"
+            f"   \u2713 360 Viewer: 360/{barcode}/viewer.html ({n_frames} เฟรม, {method})", "success"
         ))
 
     def _update_preview(self, image_path):
@@ -1997,11 +1997,11 @@ viewer.addEventListener('mousedown', stopAuto);
         if pending <= 0:
             self.pipeline_pending = 0
             self.pipeline_badge.configure(
-                text="  IDLE  ", fg=C["text_dim"], bg=C["tag_bg"]
+                text="  ว่าง  ", fg=C["text_dim"], bg=C["tag_bg"]
             )
         else:
             self.pipeline_badge.configure(
-                text=f"  QUEUE: {pending}  ", fg="#fff", bg=C["orange"]
+                text=f"  คิว: {pending}  ", fg="#fff", bg=C["orange"]
             )
 
     def _on_pipeline_done(self):
@@ -2042,14 +2042,14 @@ viewer.addEventListener('mousedown', stopAuto);
             self.product_tag.pack(side="right")
         else:
             self.current_product_info = None
-            self.product_tag.configure(text="  New product  ")
+            self.product_tag.configure(text="  สินค้าใหม่  ")
             self.product_tag.pack(side="right")
             self.product_db.add(barcode)
 
         self.current_state_label.configure(
-            text=f"{barcode}  \u2014  Select shooting angle", fg=C["yellow"]
+            text=f"{barcode}  \u2014  เลือกมุมถ่ายภาพ", fg=C["yellow"]
         )
-        self.log(f"\u2500\u2500 Scanned: {barcode}", "info")
+        self.log(f"\u2500\u2500 สแกน: {barcode}", "info")
         self.barcode_entry.delete(0, tk.END)
         self.barcode_entry.focus_set()
 
@@ -2058,12 +2058,12 @@ viewer.addEventListener('mousedown', stopAuto);
     # =========================================================================
     def select_angle(self, angle_id):
         if not self.current_barcode:
-            messagebox.showwarning("Warning", "Scan a barcode first!")
+            messagebox.showwarning("คำเตือน", "กรุณาสแกนบาร์โค้ดก่อน!")
             return
 
         # Block angle change during 360 mode
         if self.is_360_mode:
-            self.log("   Cannot change angle during 360° mode", "warning")
+            self.log("   ไม่สามารถเปลี่ยนมุมระหว่างโหมด 360°", "warning")
             return
 
         self.current_angle = angle_id
@@ -2090,10 +2090,10 @@ viewer.addEventListener('mousedown', stopAuto);
 
         count = self.angle_counters.get(angle_id, 0)
         self.current_state_label.configure(
-            text=f"{self.current_barcode}  \u2014  {label_th} ({label})  \u2014  {count} shots",
+            text=f"{self.current_barcode}  \u2014  {label_th} ({label})  \u2014  {count} รูป",
             fg=C["accent"]
         )
-        self.log(f"   Angle: {label_th} ({label})", "dim")
+        self.log(f"   มุม: {label_th} ({label})", "dim")
         self.barcode_entry.focus_set()
 
     # =========================================================================
@@ -2110,10 +2110,10 @@ viewer.addEventListener('mousedown', stopAuto);
         output_dir = self.output_folder_var.get()
 
         if not watch_dir or not os.path.isdir(watch_dir):
-            messagebox.showerror("Error", "Please select a valid Watch Folder")
+            messagebox.showerror("ข้อผิดพลาด", "กรุณาเลือกโฟลเดอร์ต้นทางที่ถูกต้อง")
             return
         if not output_dir:
-            messagebox.showerror("Error", "Please select an Output Folder")
+            messagebox.showerror("ข้อผิดพลาด", "กรุณาเลือกโฟลเดอร์ปลายทาง")
             return
 
         self.config["watch_folder"] = watch_dir
@@ -2130,12 +2130,12 @@ viewer.addEventListener('mousedown', stopAuto);
         self.observer.start()
         self.is_watching = True
 
-        self.watch_btn.configure(text="STOP", bg=C["red"])
+        self.watch_btn.configure(text="หยุด", bg=C["red"])
         self.status_dot.configure(fg=C["green"])
-        self.status_text.configure(text="  Watching", fg=C["green"])
+        self.status_text.configure(text="  กำลังทำงาน", fg=C["green"])
 
-        self.log(f"Watching: {watch_dir}", "success")
-        self.log(f"Output:   {output_dir}", "dim")
+        self.log(f"กำลังดูโฟลเดอร์: {watch_dir}", "success")
+        self.log(f"ปลายทาง: {output_dir}", "dim")
 
     def stop_watching(self):
         if self.observer:
@@ -2143,22 +2143,22 @@ viewer.addEventListener('mousedown', stopAuto);
             self.observer.join()
             self.observer = None
         self.is_watching = False
-        self.watch_btn.configure(text="START", bg=C["green"])
+        self.watch_btn.configure(text="เริ่ม", bg=C["green"])
         self.status_dot.configure(fg=C["red"])
-        self.status_text.configure(text="  Stopped", fg=C["red"])
-        self.log("Stopped watching", "warning")
+        self.status_text.configure(text="  หยุดอยู่", fg=C["red"])
+        self.log("หยุดการเฝ้าดูแล้ว", "warning")
 
     # =========================================================================
     # PROCESS NEW PHOTO
     # =========================================================================
     def process_new_photo(self, filepath):
         if not self.current_barcode:
-            self.log(f"New file: {os.path.basename(filepath)} \u2014 No barcode scanned!", "warning")
+            self.log(f"ไฟล์ใหม่: {os.path.basename(filepath)} \u2014 ยังไม่ได้สแกนบาร์โค้ด!", "warning")
             return
         if not self.current_angle:
-            self.log(f"New file: {os.path.basename(filepath)} \u2014 No angle selected!", "warning")
+            self.log(f"ไฟล์ใหม่: {os.path.basename(filepath)} \u2014 ยังไม่ได้เลือกมุม!", "warning")
             self.current_state_label.configure(
-                text=f"{self.current_barcode}  \u2014  SELECT ANGLE FIRST!", fg=C["red"]
+                text=f"{self.current_barcode}  \u2014  กรุณาเลือกมุมถ่ายก่อน!", fg=C["red"]
             )
             return
 
@@ -2205,17 +2205,17 @@ viewer.addEventListener('mousedown', stopAuto);
                     if os.path.exists(s_path):
                         self._update_preview(s_path)
                 except Exception as e:
-                    self.log(f"   Multi-res error: {e}", "warning")
+                    self.log(f"   ปรับขนาดหลายระดับผิดพลาด: {e}", "warning")
 
                 total = len(self.session_photos)
-                self.photo_count_label.configure(text=f"{total} photos")
-                self.session_badge.configure(text=f"  SESSION: {total} photos  ")
+                self.photo_count_label.configure(text=f"{total} รูป")
+                self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
                 self._save_session()
 
                 self._update_360_progress()
 
             except Exception as e:
-                self.log(f"   Error: {e}", "error")
+                self.log(f"   ข้อผิดพลาด: {e}", "error")
             return
 
         # --- NORMAL MODE ---
@@ -2228,12 +2228,12 @@ viewer.addEventListener('mousedown', stopAuto);
                             if f.startswith(f"{barcode}_{angle}_")]
                 if existing:
                     ok = messagebox.askyesno(
-                        "Duplicate Detected",
-                        f"Barcode '{barcode}' angle '{angle}' already has "
-                        f"{len(existing)} photo(s).\n\nContinue and add more?",
+                        "พบไฟล์ซ้ำ",
+                        f"บาร์โค้ด '{barcode}' มุม '{angle}' มีรูปอยู่แล้ว "
+                        f"{len(existing)} รูป\n\nต้องการถ่ายเพิ่มหรือไม่?",
                     )
                     if not ok:
-                        self.log(f"   Skipped duplicate: {barcode}/{angle}", "warning")
+                        self.log(f"   ข้ามไฟล์ซ้ำ: {barcode}/{angle}", "warning")
                         return
                     count = len(existing) + 1
                     self.angle_counters[angle] = count - 1
@@ -2277,11 +2277,11 @@ viewer.addEventListener('mousedown', stopAuto);
                 if os.path.exists(s_path):
                     self._update_preview(s_path)
             except Exception as e:
-                self.log(f"   Multi-res error: {e}", "warning")
+                self.log(f"   ปรับขนาดหลายระดับผิดพลาด: {e}", "warning")
 
             total = len(self.session_photos)
-            self.photo_count_label.configure(text=f"{total} photos")
-            self.session_badge.configure(text=f"  SESSION: {total} photos  ")
+            self.photo_count_label.configure(text=f"{total} รูป")
+            self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
             self._save_session()
 
             if angle in self.angle_buttons:
@@ -2296,7 +2296,7 @@ viewer.addEventListener('mousedown', stopAuto);
                     label_th = a.get("label_th", label)
                     break
             self.current_state_label.configure(
-                text=f"{barcode}  \u2014  {label_th} ({label})  \u2014  {count} shots",
+                text=f"{barcode}  \u2014  {label_th} ({label})  \u2014  {count} รูป",
                 fg=C["green"]
             )
 
@@ -2308,7 +2308,7 @@ viewer.addEventListener('mousedown', stopAuto);
             if needs_processing:
                 self.pipeline_pending += 1
                 self.pipeline_badge.configure(
-                    text=f"  PROCESSING {self.pipeline_pending}  ", fg=C["orange"]
+                    text=f"  กำลังประมวลผล {self.pipeline_pending}  ", fg=C["orange"]
                 )
                 self.processor.enqueue({
                     "original_path": og_path,
@@ -2319,7 +2319,7 @@ viewer.addEventListener('mousedown', stopAuto);
                 })
 
         except Exception as e:
-            self.log(f"   Error: {e}", "error")
+            self.log(f"   ข้อผิดพลาด: {e}", "error")
 
     # =========================================================================
     # LOG
@@ -2368,9 +2368,9 @@ viewer.addEventListener('mousedown', stopAuto);
 
             saved_at = state.get("saved_at", "unknown")
             ok = messagebox.askyesno(
-                "Restore Session",
-                f"Found previous session ({len(photos)} photos, saved {saved_at}).\n\n"
-                "Restore barcode, angles, and counters?",
+                "กู้คืนเซสชัน",
+                f"พบเซสชันก่อนหน้า ({len(photos)} รูป, บันทึกเมื่อ {saved_at})\n\n"
+                "ต้องการกู้คืนบาร์โค้ด มุมถ่าย และตัวนับหรือไม่?",
             )
             if not ok:
                 return
@@ -2382,12 +2382,12 @@ viewer.addEventListener('mousedown', stopAuto);
             self.spin360_counter = state.get("spin360_counter", 0)
 
             total = len(self.session_photos)
-            self.photo_count_label.configure(text=f"{total} photos")
-            self.session_badge.configure(text=f"  SESSION: {total} photos  ")
+            self.photo_count_label.configure(text=f"{total} รูป")
+            self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
 
             if self.current_barcode:
                 self.current_state_label.configure(
-                    text=f"{self.current_barcode}  --  Restored ({total} photos)",
+                    text=f"{self.current_barcode}  --  กู้คืนแล้ว ({total} รูป)",
                     fg=C["green"]
                 )
 
@@ -2397,7 +2397,7 @@ viewer.addEventListener('mousedown', stopAuto);
                     _, _, _, cnt_lbl = self.angle_buttons[aid]
                     cnt_lbl.configure(text=f"{cnt}")
 
-            self.log(f"Session restored: {total} photos, barcode={self.current_barcode}", "success")
+            self.log(f"กู้คืนเซสชัน: {total} รูป, บาร์โค้ด={self.current_barcode}", "success")
         except Exception:
             pass
 
@@ -2412,7 +2412,7 @@ viewer.addEventListener('mousedown', stopAuto);
             return
 
         win = tk.Toplevel(self)
-        win.title("Settings")
+        win.title("ตั้งค่า")
         win.geometry("700x720")
         win.configure(bg=C["bg"])
         win.resizable(True, True)
@@ -2439,7 +2439,7 @@ viewer.addEventListener('mousedown', stopAuto);
         cv.bind_all("<MouseWheel>", lambda e: cv.yview_scroll(int(-1 * (e.delta / 120)), "units"))
 
         # ── Title ──
-        tk.Label(content, text="SETTINGS", font=("Segoe UI Semibold", 16),
+        tk.Label(content, text="ตั้งค่า", font=("Segoe UI Semibold", 16),
                  fg=C["text"], bg=C["bg"]).pack(anchor="w", pady=(0, 16))
 
         # Helper: section frame
@@ -2471,7 +2471,7 @@ viewer.addEventListener('mousedown', stopAuto);
         # ============================================================
         # SECTION 1: FOLDERS
         # ============================================================
-        s1 = section("FOLDERS")
+        s1 = section("โฟลเดอร์")
 
         self._st_watch_var = tk.StringVar(value=self.config.get("watch_folder", ""))
         self._st_output_var = tk.StringVar(value=self.config.get("output_folder", ""))
@@ -2483,18 +2483,18 @@ viewer.addEventListener('mousedown', stopAuto);
             if d:
                 var.set(d)
 
-        folder_row(s1, "Watch Folder", self._st_watch_var,
+        folder_row(s1, "โฟลเดอร์ต้นทาง", self._st_watch_var,
                    lambda: _browse_dir(self._st_watch_var))
-        folder_row(s1, "Output Folder", self._st_output_var,
+        folder_row(s1, "โฟลเดอร์ปลายทาง", self._st_output_var,
                    lambda: _browse_dir(self._st_output_var))
-        folder_row(s1, "Export Folder", self._st_export_var,
+        folder_row(s1, "โฟลเดอร์ส่งออก", self._st_export_var,
                    lambda: _browse_dir(self._st_export_var))
-        folder_row(s1, "Import Folder", self._st_import_var,
+        folder_row(s1, "โฟลเดอร์นำเข้า", self._st_import_var,
                    lambda: _browse_dir(self._st_import_var))
 
         # Copy mode toggle
         self._st_copy_mode = tk.BooleanVar(value=self.config.get("copy_mode", False))
-        tk.Checkbutton(s1, text="Copy mode (keep original in watch folder)",
+        tk.Checkbutton(s1, text="โหมดคัดลอก (เก็บไฟล์เดิมไว้ในโฟลเดอร์ต้นทาง)",
                        variable=self._st_copy_mode, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -2503,23 +2503,23 @@ viewer.addEventListener('mousedown', stopAuto);
         # ============================================================
         # SECTION 2: WATERMARK
         # ============================================================
-        s2 = section("WATERMARK")
+        s2 = section("ลายน้ำ")
 
         self._st_wm_path = tk.StringVar(value=self.config.get("watermark_path", ""))
         def _browse_wm():
             p = filedialog.askopenfilename(
-                parent=win, title="Select Watermark PNG",
+                parent=win, title="เลือกไฟล์ลายน้ำ PNG",
                 filetypes=[("PNG files", "*.png"), ("All files", "*.*")]
             )
             if p:
                 self._st_wm_path.set(p)
 
-        folder_row(s2, "Watermark File", self._st_wm_path, _browse_wm)
+        folder_row(s2, "ไฟล์ลายน้ำ", self._st_wm_path, _browse_wm)
 
         # Opacity
         opt_row = tk.Frame(s2, bg=C["surface"])
         opt_row.pack(fill="x", pady=(6, 3))
-        tk.Label(opt_row, text="Opacity", font=("Segoe UI", 10), fg=C["text_muted"],
+        tk.Label(opt_row, text="ความโปร่งใส", font=("Segoe UI", 10), fg=C["text_muted"],
                  bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_opacity = tk.IntVar(value=self.config.get("watermark_opacity", 40))
         tk.Scale(opt_row, from_=10, to=100, orient="horizontal", variable=self._st_opacity,
@@ -2532,20 +2532,20 @@ viewer.addEventListener('mousedown', stopAuto);
         # Scale
         scale_row = tk.Frame(s2, bg=C["surface"])
         scale_row.pack(fill="x", pady=3)
-        tk.Label(scale_row, text="Size", font=("Segoe UI", 10), fg=C["text_muted"],
+        tk.Label(scale_row, text="ขนาด", font=("Segoe UI", 10), fg=C["text_muted"],
                  bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_wm_scale = tk.IntVar(value=self.config.get("watermark_scale", 20))
         tk.Scale(scale_row, from_=5, to=50, orient="horizontal", variable=self._st_wm_scale,
                  bg=C["surface"], fg=C["text"], troughcolor=C["surface2"],
                  highlightthickness=0, length=200, sliderrelief="flat"
                  ).pack(side="left", padx=(0, 8))
-        tk.Label(scale_row, text="% of image width", font=("Segoe UI", 10),
+        tk.Label(scale_row, text="% ของความกว้างรูป", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"]).pack(side="left")
 
         # Position
         pos_row = tk.Frame(s2, bg=C["surface"])
         pos_row.pack(fill="x", pady=3)
-        tk.Label(pos_row, text="Position", font=("Segoe UI", 10), fg=C["text_muted"],
+        tk.Label(pos_row, text="ตำแหน่ง", font=("Segoe UI", 10), fg=C["text_muted"],
                  bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_position = tk.StringVar(value=self.config.get("watermark_position", "bottom-right"))
         ttk.Combobox(pos_row, textvariable=self._st_position, width=18,
@@ -2555,7 +2555,7 @@ viewer.addEventListener('mousedown', stopAuto);
         # Margin
         margin_row = tk.Frame(s2, bg=C["surface"])
         margin_row.pack(fill="x", pady=3)
-        tk.Label(margin_row, text="Margin (px)", font=("Segoe UI", 10), fg=C["text_muted"],
+        tk.Label(margin_row, text="ขอบ (พิกเซล)", font=("Segoe UI", 10), fg=C["text_muted"],
                  bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_margin = tk.IntVar(value=self.config.get("watermark_margin", 30))
         tk.Scale(margin_row, from_=0, to=100, orient="horizontal", variable=self._st_margin,
@@ -2566,23 +2566,23 @@ viewer.addEventListener('mousedown', stopAuto);
         # ============================================================
         # SECTION 3: PIPELINE
         # ============================================================
-        s3 = section("PIPELINE")
+        s3 = section("ขั้นตอนประมวลผล")
 
         self._st_cutout = tk.BooleanVar(value=self.config.get("enable_cutout", True))
         self._st_wm = tk.BooleanVar(value=self.config.get("enable_watermark", True))
         self._st_wm_orig = tk.BooleanVar(value=self.config.get("enable_wm_original", True))
 
-        tk.Checkbutton(s3, text="Remove Background (cutout/)",
+        tk.Checkbutton(s3, text="ลบพื้นหลัง (cutout/)",
                        variable=self._st_cutout, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
                        ).pack(anchor="w", pady=2)
-        tk.Checkbutton(s3, text="Watermark on Cutout (watermarked/)",
+        tk.Checkbutton(s3, text="ลายน้ำบนภาพลบพื้นหลัง (watermarked/)",
                        variable=self._st_wm, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
                        ).pack(anchor="w", pady=2)
-        tk.Checkbutton(s3, text="Watermark on Original (watermarked_original/)",
+        tk.Checkbutton(s3, text="ลายน้ำบนภาพต้นฉบับ (watermarked_original/)",
                        variable=self._st_wm_orig, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -2591,7 +2591,7 @@ viewer.addEventListener('mousedown', stopAuto);
         # BG Color
         bg_row = tk.Frame(s3, bg=C["surface"])
         bg_row.pack(fill="x", pady=(6, 0))
-        tk.Label(bg_row, text="Background Color", font=("Segoe UI", 10),
+        tk.Label(bg_row, text="สีพื้นหลัง", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"], width=20, anchor="w").pack(side="left")
         bg_c = self.config.get("bg_color", [255, 255, 255])
         self._st_bg_r = tk.IntVar(value=bg_c[0])
@@ -2608,18 +2608,18 @@ viewer.addEventListener('mousedown', stopAuto);
         # ============================================================
         # SECTION 4: 360 SPIN
         # ============================================================
-        s4 = section("360 SPIN")
+        s4 = section("หมุน 360°")
 
         shots_row = tk.Frame(s4, bg=C["surface"])
         shots_row.pack(fill="x", pady=3)
-        tk.Label(shots_row, text="Default Shots", font=("Segoe UI", 10),
+        tk.Label(shots_row, text="จำนวนช็อตเริ่มต้น", font=("Segoe UI", 10),
                  fg=C["text_muted"], bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_spin_total = tk.IntVar(value=self.config.get("spin360_total", 24))
         ttk.Combobox(shots_row, textvariable=self._st_spin_total, width=6,
                      values=[12, 24, 36, 72], state="readonly").pack(side="left")
 
         self._st_v360_bg = tk.BooleanVar(value=self.config.get("video360_remove_bg", False))
-        tk.Checkbutton(s4, text="Video 360: Remove Background by default",
+        tk.Checkbutton(s4, text="วิดีโอ 360°: ลบพื้นหลังอัตโนมัติ",
                        variable=self._st_v360_bg, font=("Segoe UI", 10),
                        fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
                        activebackground=C["surface"], activeforeground=C["text"],
@@ -2628,11 +2628,11 @@ viewer.addEventListener('mousedown', stopAuto);
         # ============================================================
         # SECTION 5: FILE EXTENSIONS
         # ============================================================
-        s5 = section("SUPPORTED EXTENSIONS")
+        s5 = section("นามสกุลไฟล์ที่รองรับ")
 
         ext_row = tk.Frame(s5, bg=C["surface"])
         ext_row.pack(fill="x")
-        tk.Label(ext_row, text="Extensions", font=("Segoe UI", 10), fg=C["text_muted"],
+        tk.Label(ext_row, text="นามสกุลไฟล์", font=("Segoe UI", 10), fg=C["text_muted"],
                  bg=C["surface"], width=16, anchor="w").pack(side="left")
         self._st_extensions = tk.StringVar(
             value=", ".join(self.config.get("image_extensions", []))
@@ -2648,19 +2648,19 @@ viewer.addEventListener('mousedown', stopAuto);
         btn_frame = tk.Frame(content, bg=C["bg"])
         btn_frame.pack(fill="x", pady=(16, 0))
 
-        tk.Button(btn_frame, text="SAVE", font=("Segoe UI Semibold", 12),
+        tk.Button(btn_frame, text="บันทึก", font=("Segoe UI Semibold", 12),
                   fg="#fff", bg=C["green"], activebackground="#38c172",
                   relief="flat", cursor="hand2", padx=30, pady=8,
                   command=lambda: self._save_settings(win)
                   ).pack(side="left", padx=(0, 8))
 
-        tk.Button(btn_frame, text="CANCEL", font=("Segoe UI Semibold", 12),
+        tk.Button(btn_frame, text="ยกเลิก", font=("Segoe UI Semibold", 12),
                   fg=C["text"], bg=C["surface2"], activebackground=C["btn_hover"],
                   relief="flat", cursor="hand2", padx=30, pady=8,
                   command=win.destroy
                   ).pack(side="left", padx=(0, 8))
 
-        tk.Button(btn_frame, text="RESET DEFAULTS", font=("Segoe UI", 10),
+        tk.Button(btn_frame, text="รีเซ็ตค่าเริ่มต้น", font=("Segoe UI", 10),
                   fg=C["red"], bg=C["surface2"], activebackground=C["btn_hover"],
                   relief="flat", cursor="hand2", padx=16, pady=6,
                   command=lambda: self._reset_defaults(win)
@@ -2722,17 +2722,17 @@ viewer.addEventListener('mousedown', stopAuto);
         self.spin_total_var.set(self.config["spin360_total"])
         self.video360_bg_var.set(self.config["video360_remove_bg"])
 
-        self.log("Settings saved", "success")
+        self.log("บันทึกการตั้งค่าแล้ว", "success")
         win.destroy()
 
     def _reset_defaults(self, win):
         """Reset all settings to defaults."""
-        ok = messagebox.askyesno("Reset", "Reset all settings to defaults?", parent=win)
+        ok = messagebox.askyesno("รีเซ็ต", "ต้องการรีเซ็ตการตั้งค่าทั้งหมดหรือไม่?", parent=win)
         if not ok:
             return
         self.config = DEFAULT_CONFIG.copy()
         save_config(self.config)
-        self.log("Settings reset to defaults", "warning")
+        self.log("รีเซ็ตการตั้งค่าแล้ว", "warning")
         win.destroy()
         self._open_settings()
 
@@ -2743,12 +2743,12 @@ viewer.addEventListener('mousedown', stopAuto);
         """Generate CSV report summarizing photos per barcode per angle."""
         output_root = self.config.get("output_folder", "")
         if not output_root:
-            messagebox.showwarning("Warning", "No output folder set")
+            messagebox.showwarning("คำเตือน", "ยังไม่ได้ตั้งค่าโฟลเดอร์ปลายทาง")
             return
 
         original_dir = os.path.join(output_root, "original")
         if not os.path.isdir(original_dir):
-            messagebox.showwarning("Warning", "No photos found in output folder")
+            messagebox.showwarning("คำเตือน", "ไม่พบรูปภาพในโฟลเดอร์ปลายทาง")
             return
 
         # Scan output directory
@@ -2782,13 +2782,13 @@ viewer.addEventListener('mousedown', stopAuto);
             })
 
         if not report_rows:
-            messagebox.showinfo("Export", "No photos found to report")
+            messagebox.showinfo("ส่งออก", "ไม่พบรูปภาพสำหรับรายงาน")
             return
 
         # Save CSV — default to export_folder if set
         export_dir = self.config.get("export_folder", "")
         report_path = filedialog.asksaveasfilename(
-            title="Save Report",
+            title="บันทึกรายงาน",
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv")],
             initialdir=export_dir if export_dir and os.path.isdir(export_dir) else None,
@@ -2804,8 +2804,8 @@ viewer.addEventListener('mousedown', stopAuto);
 
         total_barcodes = len(report_rows)
         total_photos = sum(r["total_photos"] for r in report_rows)
-        self.log(f"Report exported: {total_barcodes} barcodes, {total_photos} photos -> {os.path.basename(report_path)}", "success")
-        messagebox.showinfo("Export", f"Report saved!\n\n{total_barcodes} barcodes\n{total_photos} total photos")
+        self.log(f"ส่งออกรายงาน: {total_barcodes} บาร์โค้ด, {total_photos} รูป -> {os.path.basename(report_path)}", "success")
+        messagebox.showinfo("ส่งออก", f"บันทึกรายงานแล้ว!\n\n{total_barcodes} บาร์โค้ด\n{total_photos} รูปทั้งหมด")
 
     # =========================================================================
     # IMPORT PHOTOS
@@ -2814,13 +2814,13 @@ viewer.addEventListener('mousedown', stopAuto);
         """Import photos from import_folder (or file dialog) into the output structure."""
         import_dir = self.config.get("import_folder", "")
         if not import_dir or not os.path.isdir(import_dir):
-            import_dir = filedialog.askdirectory(title="Select folder to import photos from")
+            import_dir = filedialog.askdirectory(title="เลือกโฟลเดอร์ที่ต้องการนำเข้ารูปภาพ")
         if not import_dir or not os.path.isdir(import_dir):
             return
 
         output_root = self.config.get("output_folder", "")
         if not output_root:
-            messagebox.showerror("Error", "Please set Output Folder first!")
+            messagebox.showerror("ข้อผิดพลาด", "กรุณาตั้งค่าโฟลเดอร์ปลายทางก่อน!")
             return
 
         exts = set(self.config.get("image_extensions", [".jpg", ".jpeg", ".png"]))
@@ -2863,8 +2863,8 @@ viewer.addEventListener('mousedown', stopAuto);
 
             imported += 1
 
-        self.log(f"Import: {imported} imported, {skipped} skipped (already exist)", "success")
-        messagebox.showinfo("Import", f"Imported {imported} photos\nSkipped {skipped} (duplicate)")
+        self.log(f"นำเข้า: {imported} รูป, ข้าม {skipped} รูป (มีอยู่แล้ว)", "success")
+        messagebox.showinfo("นำเข้า", f"นำเข้า {imported} รูป\nข้าม {skipped} รูป (ซ้ำ)")
 
     # =========================================================================
     # UNDO (TRASH)
@@ -2872,7 +2872,7 @@ viewer.addEventListener('mousedown', stopAuto);
     def undo_last_photo(self):
         """Move the last captured photo to _trash/ folder (reversible)."""
         if not self.session_photos:
-            self.log("   Nothing to undo", "warning")
+            self.log("   ไม่มีอะไรให้เลิกทำ", "warning")
             return
 
         last = self.session_photos.pop()
@@ -2914,10 +2914,10 @@ viewer.addEventListener('mousedown', stopAuto);
             self.spin360_counter = max(0, self.spin360_counter - 1)
 
         total = len(self.session_photos)
-        self.photo_count_label.configure(text=f"{total} photos")
-        self.session_badge.configure(text=f"  SESSION: {total} photos  ")
+        self.photo_count_label.configure(text=f"{total} รูป")
+        self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
 
-        self.log(f"   UNDO: {last['filename']} -> _trash/ ({moved} files moved)", "warning")
+        self.log(f"   เลิกทำ: {last['filename']} -> _trash/ (ย้าย {moved} ไฟล์)", "warning")
 
     # =========================================================================
     # CLOSE

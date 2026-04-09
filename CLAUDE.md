@@ -75,13 +75,19 @@ UI Component source: `c:\Users\Park\Downloads\APP NAIPARK\UI COMPONENT\metronic-
 
 เมื่อต้องสร้างหรือแก้ไข UI (เช่น 360 viewer HTML, report pages, settings dialog) ให้ดึง styles/patterns จาก Metronic เป็นหลัก
 
+## Language / UX Rules
+- **UI ทั้งหมดต้องเป็นภาษาไทยเท่านั้น** — ปุ่ม, ป้ายกำกับ, ข้อความ dialog, ข้อความ log, สถานะ ทุกอย่างต้องเป็นภาษาไทย
+- ข้อยกเว้น: ชื่อเทคนิค (rembg, S/M/L/OG, Multi-Res), keyboard shortcuts (F1-F8, Ctrl+Z), ชื่อโฟลเดอร์ output (original/, cutout/, watermarked/)
+- เมื่อเพิ่มหรือแก้ไข UI text ใดๆ ต้องใช้ภาษาไทยเสมอ
+- ออกแบบ UI ให้เข้าใจง่าย user-friendly — ข้อความสั้นกระชับ สื่อความหมายชัดเจน
+
 ## Development Notes
 - All image output embeds sRGB ICC profile for color accuracy
 - Video→360 handles limited color range (16-235) from H.264/H.265 cameras with YCrCb normalization
 - rembg and opencv-python are optional — app runs without them but disables related features
 - The 360 viewer HTML is self-contained with embedded JavaScript (canvas-based, supports drag/inertia/pinch-zoom/multi-resolution switching)
 - UI uses a dark theme with color constants defined in the `C` dict
-- Thai language labels are used alongside English in the UI (`label_th` field in angle config)
+- Thai-only UI labels (`label_th` field in angle config for button text)
 
 ## Common Tasks
 - **Add new angle**: Add entry to `angles` array in `config.json` and `DEFAULT_CONFIG` in `app.py`
