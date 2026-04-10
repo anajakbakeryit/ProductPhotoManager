@@ -1,15 +1,18 @@
 """
 Photos router — upload, list, delete, undo.
 """
+import io
 import os
 import logging
 import tempfile
+import zipfile
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
 
+from fastapi.responses import StreamingResponse
 from backend.api.deps import get_db, get_current_user
 from backend.api.models.db import Product, Photo, ActivityLog, User
 from backend.api.services.storage import get_storage
@@ -371,3 +374,41 @@ async def undo_delete(
     ))
     await db.commit()
     return {"message": "กู้คืนรูปภาพแล้ว", "id": photo_id}
+
+
+@router.post("/download-zip")
+async def download_zip(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Download multiple photos as ZIP (original/OG)."""
+    photo_ids = body.get("photo_ids", [])
+    variant = body.get("variant", "original")
+    size = body.get("size", "OG")
+
+    if not photo_ids or len(photo_ids) > 200:
+        raise HTTPException(status_code=400, detail="ระบุ photo_ids 1-200 รายการ")
+
+    storage = get_storage()
+    buf = io.BytesIO()
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for pid in photo_ids:
+            result = await db.execute(select(Photo).where(Photo.id == pid, Photo.is_deleted == False))
+            photo = result.scalar_one_or_none()
+            if not photo:
+                continue
+            base = os.path.splitext(photo.filename)[0]
+            ext = ".png" if variant == "cutout" else ".jpg"
+            key = f"{variant}/{photo.barcode}/{size}/{base}_{size}{ext}"
+            if storage.exists(key):
+                data = storage.download(key)
+                zf.writestr(f"{photo.barcode}/{photo.filename}", data)
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=photos.zip"},
+    )

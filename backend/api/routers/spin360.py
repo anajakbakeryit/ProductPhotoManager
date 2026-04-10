@@ -106,6 +106,120 @@ async def upload_360_frames(
     return {"uploaded": uploaded, "total": total, "barcode": barcode}
 
 
+@router.post("/video")
+async def upload_video_360(
+    file: UploadFile = File(...),
+    barcode: str = Form(...),
+    total_frames: int = Form(24),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Upload video → extract evenly-spaced frames → 360 viewer."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        raise HTTPException(status_code=400, detail="ต้องติดตั้ง opencv-python บน server")
+
+    barcode = sanitize_barcode(barcode)
+    if total_frames < 4 or total_frames > 360:
+        raise HTTPException(status_code=400, detail="จำนวนเฟรมต้องอยู่ระหว่าง 4-360")
+
+    storage = get_storage()
+
+    # Save video to temp
+    content = await file.read()
+    if len(content) > 500 * 1024 * 1024:  # 500MB max
+        raise HTTPException(status_code=400, detail="วิดีโอใหญ่เกิน 500 MB")
+
+    ext = os.path.splitext(file.filename or ".mp4")[1].lower()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(content)
+        video_path = tmp.name
+
+    try:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="ไม่สามารถเปิดไฟล์วิดีโอ")
+
+        video_total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if video_total < total_frames:
+            total_frames = video_total
+
+        # Calculate evenly-spaced frame indices
+        indices = [int(i * video_total / total_frames) for i in range(total_frames)]
+
+        # Find or create product
+        result = await db.execute(select(Product).where(Product.barcode == barcode))
+        product = result.scalar_one_or_none()
+        if not product:
+            product = Product(barcode=barcode)
+            db.add(product)
+            await db.flush()
+
+        # Create dirs
+        for folder in ["360", "original"]:
+            for sz in ["S", "M", "L", "OG"]:
+                os.makedirs(storage.get_path(f"{folder}/{barcode}/{sz}"), exist_ok=True)
+
+        base_names = []
+        for i, frame_idx in enumerate(indices):
+            frame_num = i + 1
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            # BGR → RGB → PIL
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = to_srgb(Image.fromarray(frame_rgb))
+            base = f"{barcode}_360_{frame_num:02d}"
+
+            # Save multi-res to both 360/ and original/
+            for folder in ["360", "original"]:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    save_multi_resolution(img, tmpdir, base)
+                    for sz in ["S", "M", "L", "OG"]:
+                        for f in os.listdir(os.path.join(tmpdir, sz)):
+                            storage.upload_file(
+                                os.path.join(tmpdir, sz, f),
+                                f"{folder}/{barcode}/{sz}/{f}"
+                            )
+
+            # DB record
+            photo = Photo(
+                product_id=product.id, barcode=barcode, angle="360",
+                count=frame_num, original_key=f"360/{barcode}/OG/{base}_OG.jpg",
+                filename=f"{base}.jpg", status="done",
+                width=img.width, height=img.height, uploaded_by=user.id,
+            )
+            db.add(photo)
+            base_names.append(base)
+
+        cap.release()
+
+        if not base_names:
+            raise HTTPException(status_code=400, detail="ไม่สามารถแยกเฟรมจากวิดีโอ")
+
+        # Generate size_map + viewer
+        size_map = {sz: [f"{sz}/{b}_{sz}.jpg" for b in base_names] for sz in ["S", "M", "L", "OG"]}
+        storage.upload(json.dumps(size_map).encode("utf-8"), f"360/{barcode}/_size_map.json")
+
+        from gen_viewer import generate_viewer
+        try:
+            generate_viewer(storage.get_path(f"360/{barcode}"), barcode)
+        except Exception as e:
+            logger.warning(f"[spin360] viewer generation failed: {e}")
+
+        product.photo_count = (product.photo_count or 0) + len(base_names)
+        await db.commit()
+
+        return {"barcode": barcode, "total_frames": len(base_names), "message": f"แยก {len(base_names)} เฟรมสำเร็จ"}
+
+    finally:
+        os.unlink(video_path)
+
+
 @router.get("/{barcode}")
 async def get_360_info(
     barcode: str,

@@ -115,9 +115,9 @@ export function ShootingPage() {
   }, [angles, currentBarcode, setAngle]);
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,60px))] gap-4 p-4">
-      {/* ── LEFT PANEL (320px) ────────────────────────────── */}
-      <div className="w-80 shrink-0 flex flex-col gap-3 overflow-y-auto">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-var(--header-height,60px))] gap-4 p-4 overflow-auto">
+      {/* ── LEFT PANEL (320px on desktop, full width on mobile) ── */}
+      <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-3 lg:overflow-y-auto">
 
         {/* Barcode Input */}
         <div className="rounded-xl border border-border bg-card p-4">
@@ -194,7 +194,7 @@ export function ShootingPage() {
       </div>
 
       {/* ── MAIN AREA ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0">
+      <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-[400px]">
 
         {/* Photo Dropzone + Preview */}
         <div

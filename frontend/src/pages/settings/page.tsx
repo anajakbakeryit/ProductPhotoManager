@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Save, RotateCcw, Upload } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
+import { UsersSection } from './users-section';
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -175,6 +176,9 @@ export function SettingsPage() {
           </select>
         </div>
       </section>
+
+      {/* Users */}
+      <UsersSection />
     </div>
   );
 }

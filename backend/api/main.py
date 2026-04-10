@@ -4,8 +4,13 @@ ProductPhotoManager — FastAPI Application
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import select
 
 from backend.api.config import settings
@@ -14,7 +19,7 @@ from backend.api.models.db import Base, User, AppSettings
 from fastapi import WebSocket, WebSocketDisconnect
 from backend.api.routers import auth, products, photos
 from backend.api.routers import settings as settings_router
-from backend.api.routers import sessions, gallery, reports, spin360, stats
+from backend.api.routers import sessions, gallery, reports, spin360, stats, users
 from backend.api.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -63,6 +68,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate Limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "คำขอมากเกินไป กรุณารอสักครู่"})
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -82,6 +96,7 @@ app.include_router(gallery.router, prefix="/api/gallery", tags=["gallery"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(spin360.router, prefix="/api/spin360", tags=["spin360"])
 app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
+app.include_router(users.router, prefix="/api/users", tags=["users"])
 
 
 # WebSocket endpoint for real-time pipeline status

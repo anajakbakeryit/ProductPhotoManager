@@ -40,8 +40,16 @@ def _create_token(user_id: int) -> str:
                       settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from fastapi import Request
+
+_limiter = Limiter(key_func=get_remote_address)
+
+
 @router.post("/login", response_model=LoginResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+@_limiter.limit("5/minute")
+async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(User).where(User.username == body.username, User.is_active == True)
     )

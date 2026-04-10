@@ -27,7 +27,11 @@ async def gallery(
     query = select(Photo).where(Photo.is_deleted == False)
 
     if search:
-        query = query.where(Photo.barcode.ilike(f"%{search}%"))
+        query = query.join(Product, Photo.product_id == Product.id, isouter=True).where(
+            Photo.barcode.ilike(f"%{search}%")
+            | Product.name.ilike(f"%{search}%")
+            | Product.category.ilike(f"%{search}%")
+        )
     if angle:
         query = query.where(Photo.angle == angle)
     if category:
