@@ -17,101 +17,109 @@ export function ReportsPage() {
   });
   const summary = data || [];
   const totalPhotos = summary.reduce((a, r) => a + r.total_photos, 0);
-  const totalAngles = summary.reduce((a, r) => a + Object.keys(r.angles).length, 0);
+
+  const statCards = [
+    { label: 'บาร์โค้ด', value: summary.length, icon: Package, borderColor: 'bg-blue-500', iconBg: 'bg-blue-500/10', iconColor: 'text-blue-500' },
+    { label: 'รูปทั้งหมด', value: totalPhotos, icon: Image, borderColor: 'bg-emerald-500', iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500' },
+    { label: 'มุมถ่าย', value: summary.reduce((a, r) => a + Object.keys(r.angles).length, 0), icon: BarChart3, borderColor: 'bg-amber-500', iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500' },
+  ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-5 lg:p-7 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">รายงาน</h1>
+          <h1 className="text-xl font-bold text-foreground">รายงาน</h1>
           <p className="text-sm text-muted-foreground mt-1">สรุปภาพสินค้าทั้งหมด</p>
         </div>
         <div className="flex gap-2">
           <a href="/api/reports/export/html" target="_blank"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-violet-600 text-white text-sm font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl transition-shadow">
-            <FileText className="w-4 h-4" /> HTML
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 shadow-sm transition-colors">
+            <FileText className="size-4" /> HTML
           </a>
           <a href="/api/reports/export/csv" target="_blank"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 text-white text-sm font-medium shadow-lg shadow-emerald-500/25 hover:shadow-xl transition-shadow">
-            <Download className="w-4 h-4" /> CSV
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
+            <Download className="size-4" /> CSV
           </a>
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-border bg-card p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-            <Package className="w-6 h-6 text-white" />
+        {statCards.map((card) => (
+          <div key={card.label} className="rounded-xl border border-border bg-card overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className="p-5 relative">
+              <div className={`absolute inset-y-0 left-0 w-1 ${card.borderColor} rounded-l-xl`} />
+              <div className="pl-2 flex items-center gap-4">
+                <div className={`size-10 rounded-xl ${card.iconBg} flex items-center justify-center shrink-0`}>
+                  <card.icon className={`size-5 ${card.iconColor}`} />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground tabular-nums">{card.value}</p>
+                  <p className="text-2xs text-muted-foreground font-medium uppercase tracking-wider">{card.label}</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">บาร์โค้ด</p>
-            <p className="text-2xl font-bold text-foreground">{summary.length}</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-            <Image className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">รูปทั้งหมด</p>
-            <p className="text-2xl font-bold text-foreground">{totalPhotos}</p>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
-            <BarChart3 className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">มุมถ่าย</p>
-            <p className="text-2xl font-bold text-foreground">{totalAngles}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+        <div className="rounded-xl border border-border bg-card p-5 animate-pulse">
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 bg-muted rounded" />
+            ))}
+          </div>
+        </div>
+      ) : summary.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="size-16 rounded-2xl bg-muted flex items-center justify-center mb-5">
+            <BarChart3 className="size-7 text-muted-foreground/60" />
+          </div>
+          <h3 className="text-base font-semibold text-foreground mb-1">ยังไม่มีข้อมูล</h3>
+          <p className="text-sm text-muted-foreground">อัปโหลดรูปภาพก่อนเพื่อดูรายงาน</p>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border">
-                <th className="text-left p-4 text-muted-foreground font-semibold">บาร์โค้ด</th>
-                <th className="text-left p-4 text-muted-foreground font-semibold">ชื่อ</th>
-                <th className="text-left p-4 text-muted-foreground font-semibold">หมวดหมู่</th>
-                <th className="text-right p-4 text-muted-foreground font-semibold">จำนวนรูป</th>
-                <th className="text-left p-4 text-muted-foreground font-semibold">มุมถ่าย</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((r, i) => (
-                <tr key={r.barcode} className={`border-b border-border hover:bg-muted/30 transition-colors ${i % 2 === 0 ? '' : 'bg-muted/10'}`}>
-                  <td className="p-4">
-                    <span className="font-mono font-semibold text-primary">{r.barcode}</span>
-                  </td>
-                  <td className="p-4 text-foreground">{r.name || '—'}</td>
-                  <td className="p-4 text-muted-foreground">{r.category || '—'}</td>
-                  <td className="p-4 text-right">
-                    <span className="inline-flex items-center justify-center min-w-[32px] h-7 rounded-full bg-primary/10 text-primary text-xs font-bold">
-                      {r.total_photos}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(r.angles).map(([angle, count]) => (
-                        <span key={angle} className="px-2 py-0.5 rounded-md bg-muted text-xs text-muted-foreground font-medium">
-                          {angle}:{count}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40 border-b border-border/60 text-left">
+                  <th className="px-5 pb-3 pt-4 font-medium text-2xs text-muted-foreground uppercase tracking-wider">บาร์โค้ด</th>
+                  <th className="px-5 pb-3 pt-4 font-medium text-2xs text-muted-foreground uppercase tracking-wider">ชื่อ</th>
+                  <th className="px-5 pb-3 pt-4 font-medium text-2xs text-muted-foreground uppercase tracking-wider">หมวดหมู่</th>
+                  <th className="px-5 pb-3 pt-4 font-medium text-2xs text-muted-foreground uppercase tracking-wider text-right">จำนวนรูป</th>
+                  <th className="px-5 pb-3 pt-4 font-medium text-2xs text-muted-foreground uppercase tracking-wider">มุมถ่าย</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {summary.map((r) => (
+                  <tr key={r.barcode} className="border-b border-border/40 transition-colors hover:bg-muted/50">
+                    <td className="px-5 py-3.5">
+                      <span className="font-mono font-semibold text-primary">{r.barcode}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-foreground">{r.name || '—'}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">{r.category || '—'}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <span className="inline-flex items-center justify-center min-w-[28px] h-6 rounded-md bg-primary/10 text-primary text-xs font-bold">
+                        {r.total_photos}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(r.angles).map(([angle, count]) => (
+                          <span key={angle} className="px-2 py-0.5 rounded-md bg-muted text-2xs text-muted-foreground font-medium">
+                            {angle}:{count}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
