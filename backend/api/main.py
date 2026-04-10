@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 
 from backend.api.config import settings
@@ -16,7 +15,7 @@ from backend.api.models.db import Base, User, AppSettings
 from fastapi import WebSocket, WebSocketDisconnect
 from backend.api.routers import auth, products, photos
 from backend.api.routers import settings as settings_router
-from backend.api.routers import sessions, gallery, reports
+from backend.api.routers import sessions, gallery, reports, spin360
 from backend.api.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -82,6 +81,7 @@ app.include_router(settings_router.router, prefix="/api/settings", tags=["settin
 app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(gallery.router, prefix="/api/gallery", tags=["gallery"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(spin360.router, prefix="/api/spin360", tags=["spin360"])
 
 
 # WebSocket endpoint for real-time pipeline status

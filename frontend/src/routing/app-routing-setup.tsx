@@ -7,6 +7,7 @@ import { GalleryPage } from '@/pages/gallery/page';
 import { SettingsPage } from '@/pages/settings/page';
 import { SessionsPage } from '@/pages/sessions/page';
 import { ReportsPage } from '@/pages/reports/page';
+import { Spin360Page } from '@/pages/spin360/page';
 import { useAuthStore } from '@/store/authStore';
 
 const queryClient = new QueryClient({
@@ -36,7 +37,7 @@ export function AppRoutingSetup() {
         >
           <Route path="/" element={<ShootingPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
-          <Route path="/360" element={<div className="p-6 text-foreground">360° (เร็วๆ นี้)</div>} />
+          <Route path="/360" element={<Spin360Page />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
