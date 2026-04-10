@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
 import {
   Camera,
   Menu,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
@@ -17,6 +20,23 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { SidebarMenu } from './sidebar-menu';
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === 'dark';
+  return (
+    <Button
+      variant="ghost"
+      mode="icon"
+      shape="circle"
+      className="size-9 hover:bg-primary/10"
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      title={isDark ? 'เปลี่ยนเป็น Light Mode' : 'เปลี่ยนเป็น Dark Mode'}
+    >
+      {isDark ? <Sun className="size-4.5 text-amber-400" /> : <Moon className="size-4.5 text-violet-500" />}
+    </Button>
+  );
+}
 
 export function Header() {
   const [isSidebarSheetOpen, setIsSidebarSheetOpen] = useState(false);
@@ -75,8 +95,9 @@ export function Header() {
         {/* Spacer (mega menu removed) */}
         {!mobileMode && <div className="flex-1" />}
 
-        {/* HeaderTopbar — minimal */}
+        {/* HeaderTopbar */}
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <span className="text-xs text-muted-foreground hidden sm:inline">
             Photo Manager
           </span>
