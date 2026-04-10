@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import confetti from 'canvas-confetti';
 import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera, FolderUp, GripVertical } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
@@ -94,6 +95,10 @@ export function ShootingPage() {
     if (!lastMessage) return;
     if (lastMessage.type === 'processing_done') {
       log(`✓ ประมวลผลเสร็จ: ${lastMessage.barcode}`, 'success');
+      toast.success('ประมวลผลเสร็จ!', {
+        description: lastMessage.barcode,
+        action: { label: 'ดูผล', onClick: () => window.open(`/gallery?search=${lastMessage.barcode}`, '_blank') },
+      });
     } else if (lastMessage.type === 'processing_error') {
       log(`✗ ประมวลผลผิดพลาด: ${lastMessage.barcode}`, 'error');
     } else if (lastMessage.type === 'processing_start') {
@@ -142,6 +147,13 @@ export function ShootingPage() {
         log(`✓ ${photo.filename}`, 'success');
       }
       toast.success(`อัปโหลดสำเร็จ ${res.total} รูป`);
+      // Check if all angles done → confetti!
+      const updatedCounters = useShootingStore.getState().angleCounters;
+      const allDone = angles.every((a) => (updatedCounters[a.id] || 0) > 0);
+      if (allDone) {
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
+        toast.success('🎉 ครบทุกมุมแล้ว!', { description: `${currentBarcode} — ถ่ายครบ ${angles.length} มุม` });
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ');
       log(`✗ อัปโหลดไม่สำเร็จ`, 'error');
@@ -208,6 +220,13 @@ export function ShootingPage() {
     const results = await Promise.allSettled(uploadTasks);
     const totalUploaded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
     toast.success(`Batch อัปโหลดสำเร็จ ${totalUploaded} รูป (${grouped.size} มุม)`);
+    // Check completion
+    const updatedCounters = useShootingStore.getState().angleCounters;
+    const allDone = angles.every((a) => (updatedCounters[a.id] || 0) > 0);
+    if (allDone) {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
+      toast.success('🎉 ครบทุกมุมแล้ว!', { description: `${currentBarcode} — ถ่ายครบ ${angles.length} มุม` });
+    }
     setUploading(false);
   };
 
@@ -294,16 +313,35 @@ export function ShootingPage() {
           </DndContext>
         </div>
 
-        {/* Session Info + Batch Toggle */}
+        {/* Progress Wheel + Batch Toggle */}
         <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-card to-emerald-950/20 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">เซสชัน</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{totalPhotos}</p>
-              <p className="text-xs text-muted-foreground">รูปทั้งหมด</p>
+          <div className="flex items-center gap-4">
+            {/* SVG Progress Ring */}
+            <div className="relative size-16 shrink-0">
+              <svg viewBox="0 0 36 36" className="size-16 -rotate-90">
+                {angles.map((a, i) => {
+                  const done = (angleCounters[a.id] || 0) > 0;
+                  const total = angles.length;
+                  const gap = 2;
+                  const segLen = (100 - total * gap) / total;
+                  const offset = i * (segLen + gap);
+                  return (
+                    <circle key={a.id} cx="18" cy="18" r="15.5" fill="none" strokeWidth="3"
+                      className={done ? 'stroke-emerald-500' : 'stroke-muted'}
+                      strokeDasharray={`${segLen} ${100 - segLen}`}
+                      strokeDashoffset={-offset} strokeLinecap="round" />
+                  );
+                })}
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-bold text-foreground">
+                  {angles.filter((a) => (angleCounters[a.id] || 0) > 0).length}/{angles.length}
+                </span>
+              </div>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <Camera className="w-7 h-7 text-white" />
+            <div>
+              <p className="text-2xl font-bold text-foreground">{totalPhotos}</p>
+              <p className="text-xs text-muted-foreground">รูปทั้งหมด · {angles.filter((a) => (angleCounters[a.id] || 0) > 0).length} มุม</p>
             </div>
           </div>
           <button

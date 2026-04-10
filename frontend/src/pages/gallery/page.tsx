@@ -61,6 +61,7 @@ export function GalleryPage() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
+  const [viewMode, setViewMode] = useState<'grid' | 'product'>('grid');
   const compareRef = useRef<HTMLDivElement>(null);
 
   const toggleSelect = (id: number) => {
@@ -188,9 +189,18 @@ export function GalleryPage() {
             </Button>
           )}
           <div className="flex items-center border border-border rounded-lg overflow-hidden">
-            {([
+            <button onClick={() => setViewMode('grid')}
+              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              title="Grid view">
+              <Grid2x2 className="size-4" />
+            </button>
+            <button onClick={() => setViewMode('product')}
+              className={`p-1.5 transition-colors ${viewMode === 'product' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+              title="Product view">
+              <Layers className="size-4" />
+            </button>
+            {viewMode === 'grid' && ([
               { key: 'sm' as const, icon: Grid3x3 },
-              { key: 'md' as const, icon: Grid2x2 },
               { key: 'lg' as const, icon: LayoutGrid },
             ]).map((g) => (
               <button key={g.key} onClick={() => setGridSize(g.key)}
@@ -244,11 +254,7 @@ export function GalleryPage() {
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid gap-4 ${
-                gridSize === 'sm' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
-                gridSize === 'lg' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
-                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-              }">
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
               <div className="aspect-square bg-muted rounded-t-xl" />
@@ -269,12 +275,46 @@ export function GalleryPage() {
             เริ่มถ่ายรูปสินค้าโดยไปที่หน้า "ถ่ายภาพ" แล้วสแกนบาร์โค้ด
           </p>
         </div>
+      ) : viewMode === 'product' ? (
+        /* Product Card View — grouped by barcode */
+        <div className="space-y-5">
+          {Array.from(new Map(photos.map((p) => [p.barcode, p])).values())
+            .map((first) => {
+              const barcodePhotos = photos.filter((p) => p.barcode === first.barcode);
+              return (
+                <div key={first.barcode} className="rounded-xl border border-border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/30">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-primary">{first.barcode}</span>
+                      <span className="text-2xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{barcodePhotos.length} รูป</span>
+                    </div>
+                    <button onClick={() => { navigator.clipboard.writeText(first.barcode); toast.success('คัดลอกแล้ว'); }}
+                      className="text-muted-foreground hover:text-primary"><Copy className="size-3.5" /></button>
+                  </div>
+                  <div className="p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                    {barcodePhotos.map((photo) => (
+                      <div key={photo.id} onClick={() => { setSelectedId(photo.id); setVariant('original'); setSize('M'); }}
+                        className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md transition-all">
+                        <div className="aspect-square bg-muted relative">
+                          <img src={photo.thumbnail_url} alt={photo.filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                          <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${photo.status === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
+                        </div>
+                        <div className="px-1.5 py-1">
+                          <p className="text-2xs text-center font-medium text-muted-foreground">{photo.angle}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
       ) : (
-        <div className="grid gap-4 ${
+        <div className={`grid gap-4 ${
                 gridSize === 'sm' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
                 gridSize === 'lg' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
                 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-              }">
+              }`}>
           {photos.map((photo) => (
             <div
               key={photo.id}

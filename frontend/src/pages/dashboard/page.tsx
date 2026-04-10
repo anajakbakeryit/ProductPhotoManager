@@ -1,11 +1,13 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useNavigate } from 'react-router';
 import {
   Camera, Image, Package, Loader2, Clock,
-  ArrowRight, TrendingUp, Zap,
+  ArrowRight, TrendingUp, Zap, ScanBarcode, RotateCcw,
 } from 'lucide-react';
+import { useShootingStore } from '@/store/shootingStore';
+import { Input } from '@/components/ui/input';
 import {
   Toolbar,
   ToolbarActions,
@@ -26,6 +28,16 @@ interface Stats {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const [quickBarcode, setQuickBarcode] = useState('');
+  const lastBarcode = useShootingStore((s) => s.currentBarcode);
+  const setBarcode = useShootingStore((s) => s.setBarcode);
+
+  const handleQuickScan = () => {
+    const bc = quickBarcode.trim();
+    if (!bc) return;
+    setBarcode(bc);
+    navigate('/shooting');
+  };
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['stats'],
@@ -150,22 +162,49 @@ export function DashboardPage() {
 
           {/* Quick Actions */}
           <div className="space-y-4">
-            <button
-              onClick={() => navigate('/shooting')}
-              className="w-full group rounded-xl border border-border bg-gradient-to-r from-blue-50/50 to-card dark:from-card dark:to-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
-            >
+            {/* Quick Scan */}
+            <div className="rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 to-card p-5 relative overflow-hidden">
               <div className="absolute inset-y-0 left-0 w-1 bg-primary rounded-l-xl" />
-              <div className="flex items-center justify-between pl-2">
-                <div>
-                  <div className="size-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors">
-                    <Camera className="size-5 text-primary" />
+              <div className="pl-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <ScanBarcode className="size-4 text-primary" />
                   </div>
-                  <h3 className="text-sm font-semibold text-foreground">เริ่มถ่ายรูป</h3>
-                  <p className="text-2xs text-muted-foreground mt-1">สแกนบาร์โค้ด → เลือกมุม → อัปโหลด</p>
+                  <h3 className="text-sm font-semibold text-foreground">Quick Scan</h3>
                 </div>
-                <ArrowRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                <form onSubmit={(e) => { e.preventDefault(); handleQuickScan(); }} className="flex gap-2">
+                  <Input
+                    value={quickBarcode}
+                    onChange={(e) => setQuickBarcode(e.target.value)}
+                    placeholder="สแกนหรือพิมพ์บาร์โค้ด..."
+                    className="font-mono text-sm"
+                  />
+                  <Button type="submit" size="sm" disabled={!quickBarcode.trim()}>
+                    ไป
+                  </Button>
+                </form>
               </div>
-            </button>
+            </div>
+
+            {/* Resume Last Session */}
+            {lastBarcode && (
+              <button
+                onClick={() => navigate('/shooting')}
+                className="w-full group rounded-xl border border-amber-500/20 bg-gradient-to-r from-amber-50/50 to-card dark:from-card dark:to-card p-4 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
+              >
+                <div className="absolute inset-y-0 left-0 w-1 bg-amber-500 rounded-l-xl" />
+                <div className="flex items-center justify-between pl-2">
+                  <div className="flex items-center gap-3">
+                    <RotateCcw className="size-4 text-amber-500" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">ถ่ายต่อ: {lastBarcode}</p>
+                      <p className="text-2xs text-muted-foreground">กลับไปถ่ายรูปต่อจากที่ค้างไว้</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="size-4 text-muted-foreground group-hover:text-amber-500 transition-colors" />
+                </div>
+              </button>
+            )}
 
             <button
               onClick={() => navigate('/gallery')}
