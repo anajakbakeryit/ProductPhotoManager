@@ -104,4 +104,4 @@ if os.path.isdir(storage_path):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": settings.app_name}
+    return {"status": "ok", "app": settings.app_name, "dev_mode": settings.dev_mode}

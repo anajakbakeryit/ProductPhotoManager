@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     app_name: str = "ProductPhotoManager"
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
+    # Dev mode: skip auth (no login required)
+    dev_mode: bool = True
+
     # Initial admin (created on first run)
     admin_username: str = "admin"
     admin_password: str = "admin1234"

@@ -27,6 +27,16 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import select
+    from backend.api.models.db import User
+
+    # Dev mode: skip auth, return first admin user
+    if settings.dev_mode:
+        result = await db.execute(select(User).where(User.role == "admin").limit(1))
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+
     if not credentials:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="ไม่ได้เข้าสู่ระบบ")
     try:
@@ -38,8 +48,6 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token หมดอายุหรือไม่ถูกต้อง")
 
-    from sqlalchemy import select
-    from backend.api.models.db import User
     result = await db.execute(select(User).where(User.id == int(user_id), User.is_active == True))
     user = result.scalar_one_or_none()
     if not user:
