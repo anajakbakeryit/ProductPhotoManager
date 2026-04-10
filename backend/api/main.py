@@ -14,7 +14,7 @@ from backend.api.models.db import Base, User, AppSettings
 from fastapi import WebSocket, WebSocketDisconnect
 from backend.api.routers import auth, products, photos
 from backend.api.routers import settings as settings_router
-from backend.api.routers import sessions, gallery, reports, spin360
+from backend.api.routers import sessions, gallery, reports, spin360, stats
 from backend.api.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -81,6 +81,7 @@ app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
 app.include_router(gallery.router, prefix="/api/gallery", tags=["gallery"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(spin360.router, prefix="/api/spin360", tags=["spin360"])
+app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 
 
 # WebSocket endpoint for real-time pipeline status

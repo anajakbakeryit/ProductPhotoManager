@@ -1,4 +1,5 @@
 import {
+  LayoutDashboard,
   Camera,
   Image,
   RotateCw,
@@ -10,10 +11,10 @@ import { MenuConfig } from '@/config/types';
 
 // Mega menus (required by layout component — minimal items to prevent crash)
 export const MENU_MEGA: MenuConfig = [
-  { title: 'ถ่ายภาพ', icon: Camera, path: '/' },
+  { title: 'แดชบอร์ด', icon: LayoutDashboard, path: '/' },
 ];
 export const MENU_MEGA_MOBILE: MenuConfig = [
-  { title: 'ถ่ายภาพ', icon: Camera, path: '/' },
+  { title: 'แดชบอร์ด', icon: LayoutDashboard, path: '/' },
 ];
 
 export const MENU_SIDEBAR: MenuConfig = [
@@ -21,9 +22,14 @@ export const MENU_SIDEBAR: MenuConfig = [
     heading: 'เมนูหลัก',
   },
   {
+    title: 'แดชบอร์ด',
+    icon: LayoutDashboard,
+    path: '/',
+  },
+  {
     title: 'ถ่ายภาพ',
     icon: Camera,
-    path: '/',
+    path: '/shooting',
   },
   {
     title: 'แกลเลอรี่',

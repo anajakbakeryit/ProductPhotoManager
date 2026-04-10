@@ -8,6 +8,7 @@ import { SettingsPage } from '@/pages/settings/page';
 import { SessionsPage } from '@/pages/sessions/page';
 import { ReportsPage } from '@/pages/reports/page';
 import { Spin360Page } from '@/pages/spin360/page';
+import { DashboardPage } from '@/pages/dashboard/page';
 import { useAuthStore } from '@/store/authStore';
 import { useEffect, useState } from 'react';
 
@@ -62,7 +63,8 @@ export function AppRoutingSetup() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<ShootingPage />} />
+          <Route path="/" element={<DashboardPage />} />
+        <Route path="/shooting" element={<ShootingPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/360" element={<Spin360Page />} />
           <Route path="/sessions" element={<SessionsPage />} />
