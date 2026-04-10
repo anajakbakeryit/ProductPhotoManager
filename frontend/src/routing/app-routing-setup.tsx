@@ -10,7 +10,6 @@ import { ReportsPage } from '@/pages/reports/page';
 import { Spin360Page } from '@/pages/spin360/page';
 import { useAuthStore } from '@/store/authStore';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,27 +19,25 @@ const queryClient = new QueryClient({
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
-  const [devMode, setDevMode] = useState<boolean | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Check if backend is in dev mode (no login required)
-    api.get<{ dev_mode?: boolean }>('/api/health')
-      .then((res) => {
-        if (res.dev_mode) {
-          setDevMode(true);
-          // Set a dummy user so app works
+    // Use raw fetch (not api.ts) to avoid 401 redirect loop
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.dev_mode) {
+          // Dev mode: auto-set user, no login needed
           useAuthStore.setState({
             user: { id: 1, username: 'admin', display_name: 'ผู้ดูแลระบบ', role: 'admin' },
           });
-        } else {
-          setDevMode(false);
         }
+        setReady(true);
       })
-      .catch(() => setDevMode(false));
+      .catch(() => setReady(true));
   }, []);
 
-  // Loading while checking dev mode
-  if (devMode === null) {
+  if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
@@ -48,7 +45,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && !devMode) return <Navigate to="/login" replace />;
+  if (!useAuthStore.getState().user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
