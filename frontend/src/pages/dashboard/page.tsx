@@ -11,6 +11,7 @@ import {
   ToolbarHeading,
 } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Stats {
   total_products: number;
@@ -38,8 +39,6 @@ export function DashboardPage() {
     queryKey: ['stats-daily'],
     queryFn: () => api.get<DailyItem[]>('/api/stats/daily?days=7'),
   });
-
-  const maxDaily = Math.max(...(daily || []).map((d) => d.count), 1);
 
   const cards = [
     {
@@ -136,24 +135,30 @@ export function DashboardPage() {
 
             <div className="p-5">
               {daily && daily.length > 0 ? (
-                <div className="flex items-end gap-3 h-44">
-                  {daily.map((d) => (
-                    <div key={d.date} className="flex-1 flex flex-col items-center gap-2">
-                      <span className="text-xs font-bold text-foreground tabular-nums">{d.count}</span>
-                      <div className="w-full relative rounded-t-lg bg-muted/50 overflow-hidden">
-                        <div
-                          className="w-full bg-gradient-to-t from-primary to-primary/70 rounded-t-lg transition-all duration-700 ease-out"
-                          style={{ height: `${Math.max((d.count / maxDaily) * 140, d.count > 0 ? 8 : 0)}px` }}
-                        />
-                      </div>
-                      <span className="text-2xs text-muted-foreground whitespace-nowrap">
-                        {new Date(d.date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={daily.map((d) => ({
+                    date: new Date(d.date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short' }),
+                    count: d.count,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} allowDecimals={false} width={30} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                      }}
+                      labelStyle={{ color: 'var(--foreground)', fontWeight: 600 }}
+                      itemStyle={{ color: 'var(--primary)' }}
+                      formatter={(value: number) => [`${value} รูป`, 'อัปโหลด']}
+                    />
+                    <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} barSize={32} />
+                  </BarChart>
+                </ResponsiveContainer>
               ) : (
-                <div className="h-44 flex flex-col items-center justify-center">
+                <div className="h-[200px] flex flex-col items-center justify-center">
                   <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
                     <TrendingUp className="size-5 text-muted-foreground/60" />
                   </div>

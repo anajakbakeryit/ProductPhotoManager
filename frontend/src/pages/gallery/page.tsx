@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Filter, Layers, SplitSquareHorizontal } from 'lucide-react';
+import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive } from 'lucide-react';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
 
@@ -78,7 +78,7 @@ export function GalleryPage() {
   const total = data?.total || 0;
 
   const angles = [
-    { value: '', label: 'ทุกมุม', active: 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900' },
+    { value: '', label: 'ทุกมุม', active: 'bg-primary text-primary-foreground' },
     { value: 'front', label: 'ด้านหน้า', active: 'bg-blue-500 text-white' },
     { value: 'back', label: 'ด้านหลัง', active: 'bg-violet-500 text-white' },
     { value: 'left', label: 'ด้านซ้าย', active: 'bg-emerald-500 text-white' },
@@ -95,7 +95,36 @@ export function GalleryPage() {
       <Toolbar>
         <ToolbarHeading title="แกลเลอรี่" description={`${total} รูปทั้งหมด`} />
         <ToolbarActions>
-          <Button variant="outline" size="sm">
+          {photos.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const ids = photos.map((p) => p.id);
+                toast.info(`กำลังสร้าง ZIP (${ids.length} รูป)...`);
+                try {
+                  const res = await fetch('/api/photos/download-zip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photo_ids: ids, variant: 'original', size: 'OG' }),
+                  });
+                  if (!res.ok) throw new Error('ไม่สามารถสร้าง ZIP ได้');
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = 'photos.zip'; a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success('ดาวน์โหลด ZIP สำเร็จ');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'ดาวน์โหลดไม่สำเร็จ');
+                }
+              }}
+            >
+              <FileArchive className="size-4" />
+              ZIP
+            </Button>
+          )}
+          <Button variant="outline" size="sm" disabled>
             <Layers className="size-4" />
             {total} รูป
           </Button>
