@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { useNavigate } from 'react-router';
 import {
   Camera, Image, Package, Loader2, Clock,
-  ArrowRight, TrendingUp, Zap, ArrowUpRight, ArrowDownRight,
+  ArrowRight, TrendingUp, Zap,
 } from 'lucide-react';
 
 interface Stats {
@@ -39,27 +39,27 @@ export function DashboardPage() {
     {
       label: 'รูปวันนี้', value: stats?.photos_today || 0, icon: Camera,
       borderColor: 'bg-blue-500', iconBg: 'bg-blue-500/10', iconColor: 'text-blue-500',
-      badgeBg: 'bg-blue-500/10', badgeColor: 'text-blue-500',
+      cardBg: 'bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-card dark:to-blue-950/20',
     },
     {
       label: 'รูปทั้งหมด', value: stats?.total_photos || 0, icon: Image,
       borderColor: 'bg-emerald-500', iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500',
-      badgeBg: 'bg-emerald-500/10', badgeColor: 'text-emerald-500',
+      cardBg: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-card dark:to-emerald-950/20',
     },
     {
       label: 'สินค้า', value: stats?.total_products || 0, icon: Package,
       borderColor: 'bg-amber-500', iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500',
-      badgeBg: 'bg-amber-500/10', badgeColor: 'text-amber-500',
+      cardBg: 'bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-card dark:to-amber-950/20',
     },
     {
       label: 'กำลังประมวลผล', value: stats?.pending_processing || 0, icon: Zap,
       borderColor: 'bg-rose-500', iconBg: 'bg-rose-500/10', iconColor: 'text-rose-500',
-      badgeBg: 'bg-rose-500/10', badgeColor: 'text-rose-500',
+      cardBg: 'bg-gradient-to-br from-rose-50 to-rose-100/50 dark:from-card dark:to-rose-950/20',
     },
     {
       label: 'เซสชัน', value: stats?.active_sessions || 0, icon: Clock,
       borderColor: 'bg-violet-500', iconBg: 'bg-violet-500/10', iconColor: 'text-violet-500',
-      badgeBg: 'bg-violet-500/10', badgeColor: 'text-violet-500',
+      cardBg: 'bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-card dark:to-violet-950/20',
     },
   ];
 
@@ -84,7 +84,7 @@ export function DashboardPage() {
         {cards.map((card) => (
           <div
             key={card.label}
-            className="group cursor-pointer rounded-xl border border-border bg-card overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+            className={`group cursor-pointer rounded-xl border border-border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${card.cardBg}`}
           >
             <div className="p-5 relative">
               {/* Left color border */}
@@ -112,7 +112,7 @@ export function DashboardPage() {
       {/* Chart + Quick Actions */}
       <div className="grid lg:grid-cols-3 gap-5 lg:gap-7">
         {/* Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card overflow-hidden">
+        <div className="lg:col-span-2 rounded-xl border border-border bg-card dark:bg-card overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-border/50">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4.5 h-4.5 text-primary" />
@@ -156,7 +156,7 @@ export function DashboardPage() {
         <div className="space-y-4">
           <button
             onClick={() => navigate('/shooting')}
-            className="w-full group rounded-xl border border-border bg-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
+            className="w-full group rounded-xl border border-border bg-gradient-to-r from-blue-50/50 to-card dark:from-card dark:to-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
           >
             <div className="absolute inset-y-0 left-0 w-1 bg-primary rounded-l-xl" />
             <div className="flex items-center justify-between pl-2">
@@ -173,7 +173,7 @@ export function DashboardPage() {
 
           <button
             onClick={() => navigate('/gallery')}
-            className="w-full group rounded-xl border border-border bg-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
+            className="w-full group rounded-xl border border-border bg-gradient-to-r from-emerald-50/50 to-card dark:from-card dark:to-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
           >
             <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500 rounded-l-xl" />
             <div className="flex items-center justify-between pl-2">
@@ -190,7 +190,7 @@ export function DashboardPage() {
 
           <button
             onClick={() => navigate('/reports')}
-            className="w-full group rounded-xl border border-border bg-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
+            className="w-full group rounded-xl border border-border bg-gradient-to-r from-amber-50/50 to-card dark:from-card dark:to-card p-5 text-left overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative"
           >
             <div className="absolute inset-y-0 left-0 w-1 bg-amber-500 rounded-l-xl" />
             <div className="flex items-center justify-between pl-2">
