@@ -1,3 +1,6 @@
+/* Google Fonts: Inter + Noto Sans Thai (same as BESTCHOICE) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap');
+
 /* Tailwind Core */
 @import 'tailwindcss';
 
@@ -60,6 +63,13 @@
   --border: var(--color-zinc-800);
   --input: var(--color-zinc-800);
   --ring: var(--color-zinc-600);
+}
+
+/** Font: Inter + Noto Sans Thai (same as BESTCHOICE) **/
+body {
+  font-family: 'Inter', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /** Theme Setup **/
