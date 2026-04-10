@@ -13,7 +13,11 @@ from sqlalchemy import select
 from backend.api.config import settings
 from backend.api.deps import engine, async_session
 from backend.api.models.db import Base, User, AppSettings
+from fastapi import WebSocket, WebSocketDisconnect
 from backend.api.routers import auth, products, photos
+from backend.api.routers import settings as settings_router
+from backend.api.routers import sessions, gallery, reports
+from backend.api.websocket import ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +78,22 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(photos.router, prefix="/api/photos", tags=["photos"])
+app.include_router(settings_router.router, prefix="/api/settings", tags=["settings"])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["sessions"])
+app.include_router(gallery.router, prefix="/api/gallery", tags=["gallery"])
+app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+
+
+# WebSocket endpoint for real-time pipeline status
+@app.websocket("/ws/processing")
+async def ws_processing(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # keep alive
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
 
 # Serve local storage files (dev only)
 import os
