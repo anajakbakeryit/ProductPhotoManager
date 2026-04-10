@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  Bell,
-  LayoutGrid,
+  Camera,
   Menu,
-  MessageCircleMore,
-  Search,
-  SquareChevronRight,
 } from 'lucide-react';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
-import { toAbsoluteUrl } from '@/lib/helpers';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useScrollPosition } from '@/hooks/use-scroll-position';
@@ -21,11 +16,6 @@ import {
   SheetHeader,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { SearchDialog } from '@/components/layouts/layout-1/shared/dialogs/search/search-dialog';
-import { AppsDropdownMenu } from '@/components/layouts/layout-1/shared/topbar/apps-dropdown-menu';
-import { ChatSheet } from '@/components/layouts/layout-1/shared/topbar/chat-sheet';
-import { NotificationsSheet } from '@/components/layouts/layout-1/shared/topbar/notifications-sheet';
-import { UserDropdownMenu } from '@/components/layouts/layout-1/shared/topbar/user-dropdown-menu';
 import { SidebarMenu } from './sidebar-menu';
 
 export function Header() {
@@ -52,12 +42,9 @@ export function Header() {
       <div className="container-fluid flex justify-between items-stretch lg:gap-4">
         {/* HeaderLogo */}
         <div className="flex lg:hidden items-center gap-2.5">
-          <Link to="/" className="shrink-0">
-            <img
-              src={toAbsoluteUrl('/media/app/mini-logo.svg')}
-              className="h-[25px] w-full"
-              alt="mini-logo"
-            />
+          <Link to="/" className="shrink-0 flex items-center gap-1.5">
+            <Camera className="size-5 text-primary" />
+            <span className="text-sm font-bold text-foreground">Photo Manager</span>
           </Link>
           <div className="flex items-center">
             {mobileMode && (
@@ -88,67 +75,11 @@ export function Header() {
         {/* Spacer (mega menu removed) */}
         {!mobileMode && <div className="flex-1" />}
 
-        {/* HeaderTopbar */}
+        {/* HeaderTopbar — minimal */}
         <div className="flex items-center gap-3">
-          {!mobileMode && (
-            <SearchDialog
-              trigger={
-                <Button
-                  variant="ghost"
-                  mode="icon"
-                  shape="circle"
-                  className="size-9 hover:bg-primary/10 hover:[&_svg]:text-primary"
-                >
-                  <Search className="size-4.5!" />
-                </Button>
-              }
-            />
-          )}
-          <NotificationsSheet
-            trigger={
-              <Button
-                variant="ghost"
-                mode="icon"
-                shape="circle"
-                className="size-9 hover:bg-primary/10 hover:[&_svg]:text-primary"
-              >
-                <Bell className="size-4.5!" />
-              </Button>
-            }
-          />
-          <ChatSheet
-            trigger={
-              <Button
-                variant="ghost"
-                mode="icon"
-                shape="circle"
-                className="size-9 hover:bg-primary/10 hover:[&_svg]:text-primary"
-              >
-                <MessageCircleMore className="size-4.5!" />
-              </Button>
-            }
-          />
-          <AppsDropdownMenu
-            trigger={
-              <Button
-                variant="ghost"
-                mode="icon"
-                shape="circle"
-                className="size-9 hover:bg-primary/10 hover:[&_svg]:text-primary"
-              >
-                <LayoutGrid className="size-4.5!" />
-              </Button>
-            }
-          />
-          <UserDropdownMenu
-            trigger={
-              <img
-                className="size-9 rounded-full border-2 border-green-500 shrink-0 cursor-pointer"
-                src={toAbsoluteUrl('/media/avatars/300-2.png')}
-                alt="User Avatar"
-              />
-            }
-          />
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            Photo Manager
+          </span>
         </div>
       </div>
     </header>

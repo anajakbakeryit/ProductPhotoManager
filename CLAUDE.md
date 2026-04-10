@@ -1,96 +1,173 @@
-# ProductPhotoManager
+# ProductPhotoManager — Web App
 
 ## Project Overview
-Desktop application (Python/Tkinter) for managing product photography workflows in a studio environment. Scan barcode → select angle → auto-rename + post-process incoming photos from a camera's watch folder.
+Web application สำหรับจัดการถ่ายภาพสินค้าในสตูดิโอ สแกนบาร์โค้ด → เลือกมุมถ่าย → อัปโหลดรูป → ประมวลผลอัตโนมัติ (ลบพื้นหลัง + ใส่ลายน้ำ + Multi-Res)
 
 ## Tech Stack
-- **Language**: Python 3
-- **GUI**: Tkinter (single-file app: `app.py` ~2900 lines)
-- **Image Processing**: Pillow, rembg (background removal), OpenCV (video frame extraction)
-- **File Watching**: watchdog
-- **ML Runtime**: onnxruntime (used by rembg)
-- **Build**: PyInstaller → EXE, Inno Setup → Windows installer
+- **Frontend**: React 19 + Vite 7 + Tailwind CSS 4 + Metronic v9.4.8
+- **Backend**: FastAPI (Python) + SQLAlchemy + PostgreSQL
+- **Image Processing**: Pillow, rembg (background removal), OpenCV (video→360)
+- **Storage**: Local filesystem (dev) / GCS (production)
+- **Auth**: JWT (python-jose) — dev mode ข้าม login ได้
+- **Realtime**: WebSocket สำหรับ pipeline status
 
-## Architecture
-Single-file application (`app.py`) with these main classes:
-- **`ProductPhotoApp(tk.Tk)`** — Main GUI application, handles UI, barcode scanning, angle selection, file management
-- **`ImageProcessor(threading.Thread)`** — Background thread for post-processing pipeline (remove BG, add watermark)
-- **`PhotoWatcher(FileSystemEventHandler)`** — Watches a folder for new image files from camera
-- **`ProductDB`** — Simple CSV-based product database (`products.csv`)
-
-### Key Helper Functions
-- `_sanitize_barcode()` — Sanitizes barcode input for safe filesystem use
-- `_to_srgb()` — ICC color profile conversion to sRGB
-- `save_multi_resolution()` — Saves image in S (480px) / M (800px) / L (1200px) / OG sizes
-
-## Output Folder Structure
-```
-output_folder/
-  original/{barcode}/S|M|L|OG/         # Raw originals in 4 sizes
-  cutout/{barcode}/S|M|L|OG/           # Background-removed (PNG)
-  watermarked/{barcode}/S|M|L|OG/      # Cutout + watermark (JPG)
-  watermarked_original/{barcode}/S|M|L|OG/  # Original + watermark (JPG)
-  360/{barcode}/S|M|L|OG/              # 360 spin frames + viewer.html
-  _trash/{barcode}/                    # Undo destination
-```
-
-## File Naming Convention
-- Normal: `{barcode}_{angle}_{count:02d}.ext` (e.g., `SKU001_front_01.jpg`)
-- 360 mode: `{barcode}_360_{frame:02d}.ext`
-- Multi-res suffix: `{base}_{S|M|L|OG}.jpg`
-
-## Configuration
-- **`config.json`** — All app settings (folders, watermark, pipeline toggles, angles, extensions)
-- **`products.csv`** — Product database (barcode, name, category, note)
-- **`session_state.json`** — Auto-saved session for crash recovery (runtime, not committed)
-
-## Key Keyboard Shortcuts
-- `F1`-`F8` — Select shooting angle
-- `Ctrl+Z` — Undo last photo
-- `Enter` — Confirm barcode scan
-
-## Build & Distribution
+## Development
 ```bash
-# Build EXE (requires PyInstaller)
-build.bat
+# วิธีง่ายสุด — ดับเบิลคลิก dev.bat
+dev.bat
 
-# Build Windows installer (requires Inno Setup 6)
-build_installer.bat
+# หรือรัน manual:
+# Terminal 1: PostgreSQL
+docker-compose up -d
+
+# Terminal 2: Backend (localhost:8000)
+python -m uvicorn backend.api.main:app --reload --port 8000
+
+# Terminal 3: Frontend (localhost:5173)
+cd frontend && npx vite
 ```
-Output: `dist/ProductPhotoManager-Portable.zip` or `dist/ProductPhotoManager-Setup.exe`
 
-## UI/UX Design Rules
-**เมื่อแก้ไข UI/UX ต้องใช้ components จากโฟลเดอร์ `UI COMPONENT` เท่านั้น**
+## Dev Mode
+- `DEV_MODE=true` (default) → ไม่ต้อง login เปิดใช้งานได้เลย
+- `DEV_MODE=false` → ต้อง login ด้วย username/password
+- Default admin: `admin` / `admin1234`
 
-UI Component source: `c:\Users\Park\Downloads\APP NAIPARK\UI COMPONENT\metronic-v9.4.6\`
+## Project Structure
+```
+ProductPhotoManager/
+├── backend/                    # FastAPI Python backend
+│   ├── api/
+│   │   ├── main.py             # FastAPI app, CORS, lifespan, WebSocket
+│   │   ├── config.py           # Settings (env vars, defaults)
+│   │   ├── deps.py             # Dependencies (DB session, auth, storage)
+│   │   ├── websocket.py        # WebSocket manager
+│   │   ├── routers/            # API route handlers
+│   │   │   ├── auth.py         # Login, JWT, user info
+│   │   │   ├── products.py     # Barcode CRUD
+│   │   │   ├── photos.py       # Upload, list, delete, undo
+│   │   │   ├── settings.py     # App config + watermark upload
+│   │   │   ├── sessions.py     # Session tracking
+│   │   │   ├── gallery.py      # Photo browsing + activity log
+│   │   │   ├── reports.py      # HTML/CSV export
+│   │   │   └── spin360.py      # 360° frames + video + viewer
+│   │   ├── models/db.py        # SQLAlchemy models
+│   │   ├── schemas/            # Pydantic schemas
+│   │   └── services/
+│   │       ├── storage.py      # Local/GCS storage abstraction
+│   │       └── pipeline.py     # Background image processing
+│   └── requirements.txt
+├── core/                       # Shared image processing (reused from legacy)
+│   ├── image_processor.py      # Watermark + rembg pipeline logic
+│   └── config.py               # DEFAULT_CONFIG, validate_config
+├── utils/                      # Shared utilities
+│   ├── color_profile.py        # to_srgb, save_multi_resolution, _SRGB_ICC
+│   ├── sanitize.py             # sanitize_barcode, is_path_within
+│   └── constants.py            # MULTI_RES presets
+├── frontend/                   # React + Metronic UI
+│   ├── src/
+│   │   ├── pages/              # ShootingPage, GalleryPage, SettingsPage, etc.
+│   │   ├── store/              # Zustand: authStore, shootingStore
+│   │   ├── lib/api.ts          # API client (JWT in-memory)
+│   │   ├── config/             # Metronic layout + sidebar config
+│   │   └── components/         # Metronic UI components (100+)
+│   └── package.json
+├── tests/                      # pytest unit tests
+├── gen_viewer.py               # 360° HTML viewer generator
+├── docker-compose.yml          # PostgreSQL for local dev
+├── dev.bat                     # One-click dev startup (Windows)
+└── dev.sh                      # One-click dev startup (macOS/Linux)
+```
 
-ใช้ **Metronic v9.4.6** (Tailwind CSS) เป็น design system หลัก:
-- **CSS Framework**: Tailwind CSS v4 + @keenthemes/ktui v1.1.0
-- **Color Tokens**: CSS variables (`--primary`, `--background`, `--foreground`, `--accent`, `--border`, etc.) รองรับ light/dark theme
-- **Components ที่มี**: Menu, Dropzone, Date Picker, Color Picker, Sortable, DataTables, ApexCharts, FullCalendar, Image Input, Rating, Range Slider
-- **Typography**: Tailwind default + custom sizes (text-2sm, text-2xs)
-- **Radius**: 0.5rem base + sm/md/lg/xl variants
-- **Available packages**: HTML demos, HTML starter kit, React demos (Vite/Next.js), React starter kit, Next.js landings, Figma file
-- **Key dependencies**: @popperjs/core, apexcharts, tinymce, fullcalendar, leaflet, datatables.net, axios
+## Agent Instructions
 
-เมื่อต้องสร้างหรือแก้ไข UI (เช่น 360 viewer HTML, report pages, settings dialog) ให้ดึง styles/patterns จาก Metronic เป็นหลัก
+### หลักการทำงาน
 
-## Language / UX Rules
-- **UI ทั้งหมดต้องเป็นภาษาไทยเท่านั้น** — ปุ่ม, ป้ายกำกับ, ข้อความ dialog, ข้อความ log, สถานะ ทุกอย่างต้องเป็นภาษาไทย
-- ข้อยกเว้น: ชื่อเทคนิค (rembg, S/M/L/OG, Multi-Res), keyboard shortcuts (F1-F8, Ctrl+Z), ชื่อโฟลเดอร์ output (original/, cutout/, watermarked/)
-- เมื่อเพิ่มหรือแก้ไข UI text ใดๆ ต้องใช้ภาษาไทยเสมอ
-- ออกแบบ UI ให้เข้าใจง่าย user-friendly — ข้อความสั้นกระชับ สื่อความหมายชัดเจน
+1. **อ่าน Workflow ก่อนทำงานเสมอ**
+   - ก่อนสร้าง API router → อ่าน `workflows/create-api-module.md`
+   - ก่อนสร้าง React page → อ่าน `workflows/create-page.md`
+   - ก่อนแก้ DB schema → อ่าน `workflows/db-change.md`
+   - ก่อน fix bug → อ่าน `workflows/fix-bug.md`
 
-## Development Notes
-- All image output embeds sRGB ICC profile for color accuracy
-- Video→360 handles limited color range (16-235) from H.264/H.265 cameras with YCrCb normalization
-- rembg and opencv-python are optional — app runs without them but disables related features
-- The 360 viewer HTML is self-contained with embedded JavaScript (canvas-based, supports drag/inertia/pinch-zoom/multi-resolution switching)
-- UI uses a dark theme with color constants defined in the `C` dict
-- Thai-only UI labels (`label_th` field in angle config for button text)
+2. **ค้นหาก่อนสร้าง**
+   - ค้นหา existing components, hooks, utilities ก่อนสร้างใหม่
+   - Backend reference: `backend/api/routers/products.py`
+   - Frontend reference: `frontend/src/pages/shooting/page.tsx`
 
-## Common Tasks
-- **Add new angle**: Add entry to `angles` array in `config.json` and `DEFAULT_CONFIG` in `app.py`
-- **Change output resolutions**: Modify `MULTI_RES` dict in `app.py`
-- **Modify watermark behavior**: See `ImageProcessor._add_watermark()` and `_process()` methods
-- **Edit 360 viewer template**: Inline HTML in `_generate_360_viewer()` method (~line 1584)
+3. **ตาม Pattern เดิม**
+   - Backend: FastAPI router → service → SQLAlchemy
+   - Frontend: React Query + Zustand + Radix/Metronic components
+   - ภาษาไทยสำหรับ UI text ทั้งหมด
+
+### Build Workflow
+1. **Write** — เขียน code ตาม workflow + rules
+2. **Review** — ใช้ `code-reviewer` agent ตรวจ
+3. **Test** — `pytest tests/ -v` + ทดสอบ manual
+4. **Fix** — แก้ตาม review + test results
+5. **Ship** — commit + push
+
+## API Endpoints
+```
+POST   /api/auth/login              GET    /api/auth/me
+GET    /api/products                POST   /api/products
+GET    /api/products/:barcode       PUT    /api/products/:barcode
+POST   /api/photos/upload           GET    /api/photos
+GET    /api/photos/:id              DELETE /api/photos/:id
+POST   /api/photos/:id/undo
+GET/PUT /api/settings               POST   /api/settings/watermark
+POST   /api/sessions/start          POST   /api/sessions/:id/end
+GET    /api/sessions                GET    /api/sessions/active
+GET    /api/gallery                 GET    /api/gallery/activity
+GET    /api/reports/summary         GET    /api/reports/export/html|csv
+POST   /api/spin360/frames          GET    /api/spin360/:barcode
+GET    /api/spin360/:barcode/viewer
+WS     /ws/processing
+GET    /api/health
+```
+
+## Database Models (SQLAlchemy)
+- **User** — id, username, password_hash, display_name, role, is_active
+- **Product** — id, barcode (unique), name, category, note, photo_count
+- **Photo** — id, product_id, barcode, angle, count, original_key, filename, status, has_cutout, has_watermark, is_deleted
+- **Session** — id, user_id, started_at, ended_at, photo_count, barcode_count
+- **AppSettings** — id, config (JSONB), watermark_key
+- **ActivityLog** — id, photo_id, action, message, status
+
+## Frontend Pages
+| Route | Page | หน้าที่ |
+|-------|------|---------|
+| `/` | ShootingPage | สแกนบาร์โค้ด → เลือกมุม → อัปโหลด → preview |
+| `/gallery` | GalleryPage | ดูรูปทั้งหมด, filter, search |
+| `/360` | Spin360Page | อัปโหลด 360° frames / viewer |
+| `/sessions` | SessionsPage | ประวัติเซสชัน |
+| `/reports` | ReportsPage | ส่งออกรายงาน HTML/CSV |
+| `/settings` | SettingsPage | ตั้งค่า pipeline, watermark, 360° |
+| `/login` | LoginPage | เข้าสู่ระบบ (ไม่แสดงใน dev mode) |
+
+## Coding Conventions
+- **Frontend**: TypeScript, camelCase, Radix UI + Tailwind, React Query + Zustand
+- **Backend**: Python, snake_case, FastAPI + SQLAlchemy, Pydantic schemas
+- **UI text**: ภาษาไทยทั้งหมด
+- **Code**: English variable/function names
+- **Formatting**: Prettier (frontend), ruff (backend)
+
+## Image Processing Pipeline
+```
+Upload → original/ (S/M/L/OG) → DB status='uploaded'
+  └── Background thread:
+      ├── Watermark on Original → watermarked_original/
+      ├── rembg Remove BG → cutout/
+      ├── Watermark on Cutout → watermarked/
+      └── DB status='done' + WebSocket notify
+```
+
+## Storage Structure
+```
+storage/
+├── original/{barcode}/S|M|L|OG/
+├── cutout/{barcode}/S|M|L|OG/
+├── watermarked/{barcode}/S|M|L|OG/
+├── watermarked_original/{barcode}/S|M|L|OG/
+├── 360/{barcode}/S|M|L|OG/ + viewer.html
+├── _trash/
+└── _watermarks/
+```
