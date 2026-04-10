@@ -63,6 +63,7 @@ class Photo(Base):
     width = Column(Integer)
     height = Column(Integer)
     file_size = Column(BigInteger)
+    tags = Column(JSON, default=[])
 
     # Relations
     session_id = Column(Integer, ForeignKey("sessions.id"))

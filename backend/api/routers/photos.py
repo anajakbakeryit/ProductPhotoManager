@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from backend.api.deps import get_db, get_current_user
 from backend.api.models.db import Product, Photo, ActivityLog, User
 from backend.api.services.storage import get_storage
+from backend.api.services.angle_detector import detect_angle_from_filename, detect_angles_batch
 from utils.sanitize import sanitize_barcode
 from utils.color_profile import to_srgb, save_multi_resolution
 
@@ -412,3 +413,88 @@ async def download_zip(
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=photos.zip"},
     )
+
+
+# ── Tags ────────────────────────────────────────────
+
+@router.get("/{photo_id}/tags")
+async def get_tags(
+    photo_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Photo).where(Photo.id == photo_id, Photo.is_deleted == False))
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="ไม่พบรูปภาพ")
+    return {"tags": photo.tags or []}
+
+
+@router.post("/{photo_id}/tags")
+async def add_tag(
+    photo_id: int,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    tag = body.get("tag", "").strip()
+    if not tag:
+        raise HTTPException(status_code=400, detail="กรุณาระบุ tag")
+
+    result = await db.execute(select(Photo).where(Photo.id == photo_id, Photo.is_deleted == False))
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="ไม่พบรูปภาพ")
+
+    tags = list(photo.tags or [])
+    if tag not in tags:
+        tags.append(tag)
+        photo.tags = tags
+        await db.commit()
+    return {"tags": tags}
+
+
+@router.delete("/{photo_id}/tags/{tag}")
+async def remove_tag(
+    photo_id: int,
+    tag: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(Photo).where(Photo.id == photo_id, Photo.is_deleted == False))
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="ไม่พบรูปภาพ")
+
+    tags = list(photo.tags or [])
+    if tag in tags:
+        tags.remove(tag)
+        photo.tags = tags
+        await db.commit()
+    return {"tags": tags}
+
+
+# ── Angle Detection ─────────────────────────────────
+
+@router.post("/detect-angles")
+async def detect_angles(
+    body: dict,
+    _user: User = Depends(get_current_user),
+):
+    """Detect angles from filenames using heuristics."""
+    filenames = body.get("filenames", [])
+    if not filenames:
+        raise HTTPException(status_code=400, detail="ระบุ filenames")
+    return {"angles": detect_angles_batch(filenames)}
+
+
+@router.post("/detect-angle")
+async def detect_single_angle(
+    body: dict,
+    _user: User = Depends(get_current_user),
+):
+    """Detect angle from a single filename."""
+    filename = body.get("filename", "")
+    if not filename:
+        raise HTTPException(status_code=400, detail="ระบุ filename")
+    return {"angle": detect_angle_from_filename(filename)}

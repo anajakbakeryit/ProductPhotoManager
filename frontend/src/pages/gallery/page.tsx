@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
@@ -22,8 +22,10 @@ interface Photo {
 }
 
 function PhotoTagBar({ photoId }: { photoId: number }) {
-  const { getTagsForPhoto, addTag, removeTag } = usePhotoTagStore();
+  const { getTagsForPhoto, addTag, removeTag, loadTags } = usePhotoTagStore();
   const tags = getTagsForPhoto(photoId);
+
+  useEffect(() => { loadTags(photoId); }, [photoId, loadTags]);
   return (
     <div className="px-5 py-3 border-t border-border/50 flex items-center gap-2 flex-wrap">
       <Tag className="size-3.5 text-muted-foreground shrink-0" />

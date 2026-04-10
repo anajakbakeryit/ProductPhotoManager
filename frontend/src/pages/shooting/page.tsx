@@ -158,16 +158,6 @@ export function ShootingPage() {
 
   // Batch upload — auto-detect angle from filename
   const [batchMode, setBatchMode] = useState(false);
-  const detectAngle = (filename: string): string => {
-    const lower = filename.toLowerCase();
-    const angleKeywords = ['front', 'back', 'left', 'right', 'top', 'bottom', 'detail', 'package'];
-    for (const kw of angleKeywords) {
-      // Word boundary match: "back_01.jpg" ✓, "background.jpg" ✗
-      if (new RegExp(`(?:^|[_\\-./\\s])${kw}(?:[_\\-./\\s]|$)`).test(lower)) return kw;
-    }
-    return 'front';
-  };
-
   const handleBatchUpload = async (files: FileList | File[]) => {
     if (!currentBarcode) {
       toast.error('กรุณาสแกนบาร์โค้ดก่อน');
@@ -175,9 +165,22 @@ export function ShootingPage() {
     }
     setUploading(true);
     const fileArray = Array.from(files);
+
+    // Use backend AI angle detection
+    let angleMap: Record<string, string> = {};
+    try {
+      const res = await api.post<{ angles: Record<string, string> }>('/api/photos/detect-angles', {
+        filenames: fileArray.map((f) => f.name),
+      });
+      angleMap = res.angles;
+    } catch {
+      // Fallback: all files → front
+      for (const f of fileArray) angleMap[f.name] = 'front';
+    }
+
     const grouped = new Map<string, File[]>();
     for (const f of fileArray) {
-      const angle = detectAngle(f.name);
+      const angle = angleMap[f.name] || 'front';
       if (!grouped.has(angle)) grouped.set(angle, []);
       grouped.get(angle)!.push(f);
     }

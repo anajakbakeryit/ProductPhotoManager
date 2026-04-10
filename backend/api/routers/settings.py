@@ -106,3 +106,43 @@ async def upload_watermark(
 
     await db.commit()
     return {"message": "อัปโหลดลายน้ำแล้ว", "watermark_url": storage.get_url(key)}
+
+
+# ── Watch Folder ────────────────────────────────────
+
+from backend.api.services.watch_folder import start_watch_folder, stop_watch_folder, is_watching
+
+
+@router.post("/watch-folder/start")
+async def start_watching(
+    body: dict,
+    _user: User = Depends(get_current_user),
+):
+    folder_path = body.get("folder_path", "")
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="กรุณาระบุ folder_path")
+
+    def upload_callback(file_path: str, barcode: str, angle: str):
+        logger.info(f"Watch folder auto-upload: {file_path} → {barcode}/{angle}")
+        # Note: actual upload happens via pipeline — this logs the intent
+        # In production, integrate with the photo upload pipeline here
+
+    success = start_watch_folder(folder_path, upload_callback)
+    if success:
+        return {"message": f"เริ่มติดตามโฟลเดอร์: {folder_path}", "watching": True}
+    raise HTTPException(status_code=500, detail="ไม่สามารถเริ่มติดตามได้")
+
+
+@router.post("/watch-folder/stop")
+async def stop_watching(
+    _user: User = Depends(get_current_user),
+):
+    stop_watch_folder()
+    return {"message": "หยุดติดตามโฟลเดอร์แล้ว", "watching": False}
+
+
+@router.get("/watch-folder/status")
+async def watch_status(
+    _user: User = Depends(get_current_user),
+):
+    return {"watching": is_watching()}
