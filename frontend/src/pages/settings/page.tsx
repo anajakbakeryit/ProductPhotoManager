@@ -60,8 +60,11 @@ export function SettingsPage() {
       </div>
 
       {/* Pipeline */}
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">ขั้นตอนประมวลผล</h2>
+      <section className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-50/50 to-card dark:from-card dark:to-blue-950/10 p-5 space-y-4 relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-1 bg-blue-500 rounded-l-xl" />
+        <h2 className="text-sm font-semibold text-foreground pl-2 flex items-center gap-2">
+          <span className="text-blue-500">⚡</span> ขั้นตอนประมวลผล
+        </h2>
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={!!config.enable_cutout}
             onChange={(e) => update('enable_cutout', e.target.checked)}
@@ -83,8 +86,11 @@ export function SettingsPage() {
       </section>
 
       {/* Watermark */}
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">ลายน้ำ</h2>
+      <section className="rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-50/50 to-card dark:from-card dark:to-violet-950/10 p-5 space-y-4 relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-1 bg-violet-500 rounded-l-xl" />
+        <h2 className="text-sm font-semibold text-foreground pl-2 flex items-center gap-2">
+          <span className="text-violet-500">💧</span> ลายน้ำ
+        </h2>
         {data?.watermark_url && (
           <img src={data.watermark_url} alt="watermark" className="h-16 object-contain bg-muted rounded p-2" />
         )}
@@ -135,8 +141,11 @@ export function SettingsPage() {
       </section>
 
       {/* Background Color */}
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">สีพื้นหลัง (สำหรับ flatten)</h2>
+      <section className="rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-50/50 to-card dark:from-card dark:to-emerald-950/10 p-5 space-y-4 relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500 rounded-l-xl" />
+        <h2 className="text-sm font-semibold text-foreground pl-2 flex items-center gap-2">
+          <span className="text-emerald-500">🎨</span> สีพื้นหลัง
+        </h2>
         <div className="flex gap-3">
           {['R', 'G', 'B'].map((ch, i) => (
             <div key={ch}>
@@ -162,8 +171,11 @@ export function SettingsPage() {
       </section>
 
       {/* 360 */}
-      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">360°</h2>
+      <section className="rounded-xl border border-orange-500/20 bg-gradient-to-br from-orange-50/50 to-card dark:from-card dark:to-orange-950/10 p-5 space-y-4 relative overflow-hidden">
+        <div className="absolute inset-y-0 left-0 w-1 bg-orange-500 rounded-l-xl" />
+        <h2 className="text-sm font-semibold text-foreground pl-2 flex items-center gap-2">
+          <span className="text-orange-500">🔄</span> 360°
+        </h2>
         <div>
           <label className="block text-xs text-muted-foreground mb-1">จำนวนเฟรมเริ่มต้น</label>
           <select value={String(config.spin360_total || 24)}

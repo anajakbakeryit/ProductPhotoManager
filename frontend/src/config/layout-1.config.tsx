@@ -25,21 +25,25 @@ export const MENU_SIDEBAR: MenuConfig = [
     title: 'แดชบอร์ด',
     icon: LayoutDashboard,
     path: '/',
+    badge: '🏠',
   },
   {
     title: 'ถ่ายภาพ',
     icon: Camera,
     path: '/shooting',
+    badge: '📸',
   },
   {
     title: 'แกลเลอรี่',
     icon: Image,
     path: '/gallery',
+    badge: '🖼️',
   },
   {
     title: '360 องศา',
     icon: RotateCw,
     path: '/360',
+    badge: '🔄',
   },
   {
     heading: 'ข้อมูล',
@@ -48,11 +52,13 @@ export const MENU_SIDEBAR: MenuConfig = [
     title: 'เซสชัน',
     icon: Clock,
     path: '/sessions',
+    badge: '⏱️',
   },
   {
     title: 'รายงาน',
     icon: BarChart3,
     path: '/reports',
+    badge: '📊',
   },
   {
     heading: 'ระบบ',
@@ -61,5 +67,6 @@ export const MENU_SIDEBAR: MenuConfig = [
     title: 'ตั้งค่า',
     icon: Settings,
     path: '/settings',
+    badge: '⚙️',
   },
 ];

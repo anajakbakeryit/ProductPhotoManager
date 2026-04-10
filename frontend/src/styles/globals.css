@@ -72,6 +72,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/** Custom animations **/
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.animate-gradient {
+  animation: gradient-shift 6s ease infinite;
+}
+
 /** Theme Setup **/
 @theme inline {
   /** Base Colors **/

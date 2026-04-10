@@ -31,7 +31,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left: Gradient Hero */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-violet-600 to-fuchsia-600">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-blue-600 via-violet-600 to-fuchsia-600 animate-gradient bg-[length:200%_200%]">
         {/* Animated circles */}
         <div className="absolute inset-0">
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl animate-pulse" />

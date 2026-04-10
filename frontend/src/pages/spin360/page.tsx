@@ -47,8 +47,8 @@ export function Spin360Page() {
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="p-5 border-b border-border/50">
           <div className="flex items-center gap-2 mb-4">
-            <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
-              <RotateCw className="size-4 text-violet-500" />
+            <div className="size-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm">
+              <RotateCw className="size-4 text-white" />
             </div>
             <h2 className="text-sm font-semibold text-foreground">อัปโหลดเฟรม 360°</h2>
           </div>
@@ -103,11 +103,11 @@ export function Spin360Page() {
 
       {/* Viewer */}
       {spinData && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-50/30 to-card dark:from-card dark:to-cyan-950/10 overflow-hidden">
           <div className="flex items-center justify-between p-5 border-b border-border/50">
             <div className="flex items-center gap-2">
-              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <RotateCw className="size-4 text-primary" />
+              <div className="size-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-sm">
+                <RotateCw className="size-4 text-white" />
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-foreground">360° Viewer — {spinData.barcode}</h2>

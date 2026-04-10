@@ -62,16 +62,16 @@ export function GalleryPage() {
   const total = data?.total || 0;
 
   const angles = [
-    { value: '', label: 'ทุกมุม' },
-    { value: 'front', label: 'ด้านหน้า' },
-    { value: 'back', label: 'ด้านหลัง' },
-    { value: 'left', label: 'ด้านซ้าย' },
-    { value: 'right', label: 'ด้านขวา' },
-    { value: 'top', label: 'ด้านบน' },
-    { value: 'bottom', label: 'ด้านล่าง' },
-    { value: 'detail', label: 'รายละเอียด' },
-    { value: 'package', label: 'แพ็คเกจ' },
-    { value: '360', label: '360°' },
+    { value: '', label: 'ทุกมุม', active: 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900' },
+    { value: 'front', label: 'ด้านหน้า', active: 'bg-blue-500 text-white' },
+    { value: 'back', label: 'ด้านหลัง', active: 'bg-violet-500 text-white' },
+    { value: 'left', label: 'ด้านซ้าย', active: 'bg-emerald-500 text-white' },
+    { value: 'right', label: 'ด้านขวา', active: 'bg-orange-500 text-white' },
+    { value: 'top', label: 'ด้านบน', active: 'bg-pink-500 text-white' },
+    { value: 'bottom', label: 'ด้านล่าง', active: 'bg-sky-500 text-white' },
+    { value: 'detail', label: 'รายละเอียด', active: 'bg-lime-500 text-white' },
+    { value: 'package', label: 'แพ็คเกจ', active: 'bg-fuchsia-500 text-white' },
+    { value: '360', label: '360°', active: 'bg-amber-500 text-white' },
   ];
 
   return (
@@ -103,7 +103,7 @@ export function GalleryPage() {
               onClick={() => { setAngle(a.value); setPage(1); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 angle === a.value
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? `${a.active} shadow-sm`
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
