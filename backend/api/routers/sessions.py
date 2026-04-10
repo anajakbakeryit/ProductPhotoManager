@@ -1,7 +1,7 @@
 """
 Sessions router — shooting session tracking.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,7 @@ async def start_session(
     active = result.scalar_one_or_none()
     if active:
         active.is_active = False
-        active.ended_at = datetime.utcnow()
+        active.ended_at = datetime.now(tz=timezone.utc)
 
     session = Session(user_id=user.id)
     db.add(session)
@@ -47,7 +47,7 @@ async def end_session(
         raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์จบเซสชันนี้")
 
     session.is_active = False
-    session.ended_at = datetime.utcnow()
+    session.ended_at = datetime.now(tz=timezone.utc)
 
     # Count photos in this session
     count = (await db.execute(

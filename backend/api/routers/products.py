@@ -32,10 +32,18 @@ class ProductOut(BaseModel):
     category: str
     note: str
     photo_count: int
-    created_at: str
+    created_at: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+    @classmethod
+    def from_model(cls, product):
+        return cls(
+            id=product.id, barcode=product.barcode,
+            name=product.name or "", category=product.category or "",
+            note=product.note or "", photo_count=product.photo_count or 0,
+            created_at=product.created_at.isoformat() if product.created_at else None,
+        )
 
 
 @router.get("")
@@ -65,7 +73,7 @@ async def list_products(
     products = result.scalars().all()
 
     return {
-        "data": [ProductOut.model_validate(p).model_dump() for p in products],
+        "data": [ProductOut.from_model(p).model_dump() for p in products],
         "total": total,
         "page": page,
         "limit": limit,
@@ -82,7 +90,7 @@ async def get_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="ไม่พบสินค้า")
-    return ProductOut.model_validate(product)
+    return ProductOut.from_model(product)
 
 
 @router.post("", status_code=201)
@@ -101,7 +109,7 @@ async def create_product(
     db.add(product)
     await db.commit()
     await db.refresh(product)
-    return ProductOut.model_validate(product)
+    return ProductOut.from_model(product)
 
 
 @router.put("/{barcode}")
@@ -125,4 +133,4 @@ async def update_product(
 
     await db.commit()
     await db.refresh(product)
-    return ProductOut.model_validate(product)
+    return ProductOut.from_model(product)

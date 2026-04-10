@@ -55,18 +55,19 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # Validate
-    errors = validate_config(body.config)
+    # Merge with defaults then validate
+    merged = {**DEFAULT_CONFIG, **body.config}
+    errors = validate_config(merged)
     if errors:
         raise HTTPException(status_code=400, detail="; ".join(errors))
 
     result = await db.execute(select(AppSettings))
     settings = result.scalar_one_or_none()
     if not settings:
-        settings = AppSettings(config=body.config, updated_by=user.id)
+        settings = AppSettings(config=merged, updated_by=user.id)
         db.add(settings)
     else:
-        settings.config = body.config
+        settings.config = merged
         settings.updated_by = user.id
 
     await db.commit()
