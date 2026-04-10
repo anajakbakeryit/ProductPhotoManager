@@ -8,9 +8,13 @@ import {
 } from 'lucide-react';
 import { MenuConfig } from '@/config/types';
 
-// Mega menus (not used — required by layout component)
-export const MENU_MEGA: MenuConfig = [];
-export const MENU_MEGA_MOBILE: MenuConfig = [];
+// Mega menus (required by layout component — minimal items to prevent crash)
+export const MENU_MEGA: MenuConfig = [
+  { title: 'ถ่ายภาพ', icon: Camera, path: '/' },
+];
+export const MENU_MEGA_MOBILE: MenuConfig = [
+  { title: 'ถ่ายภาพ', icon: Camera, path: '/' },
+];
 
 export const MENU_SIDEBAR: MenuConfig = [
   {

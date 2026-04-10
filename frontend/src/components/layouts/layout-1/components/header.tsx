@@ -26,13 +26,10 @@ import { AppsDropdownMenu } from '@/components/layouts/layout-1/shared/topbar/ap
 import { ChatSheet } from '@/components/layouts/layout-1/shared/topbar/chat-sheet';
 import { NotificationsSheet } from '@/components/layouts/layout-1/shared/topbar/notifications-sheet';
 import { UserDropdownMenu } from '@/components/layouts/layout-1/shared/topbar/user-dropdown-menu';
-import { MegaMenu } from './mega-menu';
-import { MegaMenuMobile } from './mega-menu-mobile';
 import { SidebarMenu } from './sidebar-menu';
 
 export function Header() {
   const [isSidebarSheetOpen, setIsSidebarSheetOpen] = useState(false);
-  const [isMegaMenuSheetOpen, setIsMegaMenuSheetOpen] = useState(false);
 
   const { pathname } = useLocation();
   const mobileMode = useIsMobile();
@@ -43,7 +40,6 @@ export function Header() {
   // Close sheet when route changes
   useEffect(() => {
     setIsSidebarSheetOpen(false);
-    setIsMegaMenuSheetOpen(false);
   }, [pathname]);
 
   return (
@@ -86,35 +82,11 @@ export function Header() {
                 </SheetContent>
               </Sheet>
             )}
-            {mobileMode && (
-              <Sheet
-                open={isMegaMenuSheetOpen}
-                onOpenChange={setIsMegaMenuSheetOpen}
-              >
-                <SheetTrigger asChild>
-                  <Button variant="ghost" mode="icon">
-                    <SquareChevronRight className="text-muted-foreground/70" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent
-                  className="p-0 gap-0 w-[275px]"
-                  side="left"
-                  close={false}
-                >
-                  <SheetHeader className="p-0 space-y-0" />
-                  <SheetBody className="p-0 overflow-y-auto">
-                    <MegaMenuMobile />
-                  </SheetBody>
-                </SheetContent>
-              </Sheet>
-            )}
           </div>
         </div>
 
-        {/* Mega Menu */}
-        {!mobileMode && (
-          <MegaMenu />
-        )}
+        {/* Spacer (mega menu removed) */}
+        {!mobileMode && <div className="flex-1" />}
 
         {/* HeaderTopbar */}
         <div className="flex items-center gap-3">
