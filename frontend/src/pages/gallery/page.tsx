@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import { Search, Filter, Image as ImageIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { Search, Image as ImageIcon, X, Download, Trash2, RotateCw } from 'lucide-react';
 
 interface Photo {
   id: number;
@@ -19,6 +20,31 @@ export function GalleryPage() {
   const [search, setSearch] = useState('');
   const [angle, setAngle] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [variant, setVariant] = useState<string>('original');
+  const [size, setSize] = useState<string>('M');
+  const queryClient = useQueryClient();
+
+  // Photo detail query
+  const { data: detail } = useQuery({
+    queryKey: ['photo-detail', selectedId],
+    queryFn: () => api.get<{
+      id: number; barcode: string; angle: string; filename: string;
+      width: number; height: number; status: string;
+      urls: Record<string, Record<string, string>>;
+    }>(`/api/photos/${selectedId}`),
+    enabled: !!selectedId,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/photos/${id}`),
+    onSuccess: () => {
+      toast.success('ลบรูปแล้ว');
+      setSelectedId(null);
+      queryClient.invalidateQueries({ queryKey: ['gallery'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['gallery', search, angle, page],
@@ -87,6 +113,7 @@ export function GalleryPage() {
           {photos.map((photo) => (
             <div
               key={photo.id}
+              onClick={() => { setSelectedId(photo.id); setVariant('original'); setSize('M'); }}
               className="group relative rounded-lg overflow-hidden border border-border bg-card hover:border-primary transition-colors cursor-pointer"
             >
               <div className="aspect-square bg-muted">
@@ -135,6 +162,79 @@ export function GalleryPage() {
           >
             ถัดไป
           </button>
+        </div>
+      )}
+      {/* Lightbox Modal */}
+      {selectedId && detail && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+             onClick={() => setSelectedId(null)}>
+          <div className="bg-card rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+               onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <div>
+                <h3 className="text-foreground font-semibold">{detail.filename}</h3>
+                <p className="text-xs text-muted-foreground">
+                  {detail.barcode} / {detail.angle} — {detail.width}x{detail.height} — {detail.status}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => deleteMutation.mutate(detail.id)}
+                  className="p-2 rounded-lg hover:bg-destructive/10 text-destructive">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setSelectedId(null)}
+                  className="p-2 rounded-lg hover:bg-muted">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Image */}
+            <div className="flex items-center justify-center bg-black min-h-[400px] max-h-[60vh]">
+              {detail.urls[variant]?.[size] ? (
+                <img src={detail.urls[variant][size]} alt={detail.filename}
+                  className="max-w-full max-h-[60vh] object-contain" />
+              ) : (
+                <p className="text-muted-foreground">ไม่พบรูปสำหรับ {variant}/{size}</p>
+              )}
+            </div>
+
+            {/* Controls */}
+            <div className="p-4 border-t border-border flex flex-wrap gap-4">
+              {/* Variant selector */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">ประเภท</label>
+                <div className="flex gap-1">
+                  {['original', 'cutout', 'watermarked', 'watermarked_original'].map((v) => (
+                    <button key={v} onClick={() => setVariant(v)}
+                      className={`px-2 py-1 rounded text-xs ${variant === v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent/10'}`}>
+                      {v === 'original' ? 'ต้นฉบับ' : v === 'cutout' ? 'ลบพื้นหลัง' : v === 'watermarked' ? 'ลายน้ำ' : 'ลายน้ำ+ต้นฉบับ'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Size selector */}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">ขนาด</label>
+                <div className="flex gap-1">
+                  {['S', 'M', 'L', 'OG'].map((s) => (
+                    <button key={s} onClick={() => setSize(s)}
+                      className={`px-2 py-1 rounded text-xs font-mono ${size === s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent/10'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Download */}
+              {detail.urls[variant]?.[size] && (
+                <a href={detail.urls[variant][size]} download
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm">
+                  <Download className="w-3.5 h-3.5" /> ดาวน์โหลด
+                </a>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

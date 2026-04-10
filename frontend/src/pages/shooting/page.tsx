@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Camera, RotateCcw, Upload } from 'lucide-react';
+import { Upload, Wifi, WifiOff } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
+import { useProcessingStatus } from '@/hooks/useProcessingStatus';
 
 export function ShootingPage() {
   const {
@@ -10,6 +11,7 @@ export function ShootingPage() {
     setBarcode, setAngle, incrementCounter, setLastPreview, lastPreviewUrl,
   } = useShootingStore();
 
+  const { lastMessage, isConnected } = useProcessingStatus();
   const [barcodeInput, setBarcodeInput] = useState('');
   const [productInfo, setProductInfo] = useState<{ name: string; category: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -24,6 +26,19 @@ export function ShootingPage() {
     setActivityLog((prev) => [...prev.slice(-50), { time, msg, type }]);
     setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }), 50);
   }, []);
+
+  // WebSocket processing status
+  useEffect(() => {
+    if (!lastMessage) return;
+    if (lastMessage.type === 'processing_done') {
+      log(`✓ ประมวลผลเสร็จ: ${lastMessage.barcode}`, 'success');
+      toast.success('ประมวลผลเสร็จ');
+    } else if (lastMessage.type === 'processing_error') {
+      log(`✗ ประมวลผลผิดพลาด: ${lastMessage.barcode}`, 'error');
+    } else if (lastMessage.type === 'processing_start') {
+      log(`⏳ กำลังประมวลผล: ${lastMessage.filename || lastMessage.barcode}`, 'info');
+    }
+  }, [lastMessage, log]);
 
   // Barcode scan
   const handleBarcodeScan = async () => {
@@ -234,8 +249,12 @@ export function ShootingPage() {
 
         {/* Activity Log */}
         <div className="rounded-xl border border-border bg-card">
-          <div className="px-4 py-2 border-b border-border">
+          <div className="px-4 py-2 border-b border-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-muted-foreground">บันทึกกิจกรรม</h3>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              {isConnected ? <Wifi className="w-3 h-3 text-green-500" /> : <WifiOff className="w-3 h-3 text-red-500" />}
+              {isConnected ? 'เชื่อมต่อ' : 'ขาดการเชื่อมต่อ'}
+            </span>
           </div>
           <div ref={logRef} className="h-36 overflow-y-auto px-4 py-2 font-mono text-xs space-y-0.5">
             {activityLog.length === 0 ? (

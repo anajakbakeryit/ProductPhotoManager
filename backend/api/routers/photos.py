@@ -32,6 +32,13 @@ async def upload_photos(
     storage = get_storage()
     barcode = sanitize_barcode(barcode)
 
+    # Find active session for this user
+    from backend.api.models.db import Session as SessionModel
+    active_session = (await db.execute(
+        select(SessionModel).where(SessionModel.user_id == user.id, SessionModel.is_active == True)
+    )).scalar_one_or_none()
+    session_id = active_session.id if active_session else None
+
     # Find or create product
     result = await db.execute(select(Product).where(Product.barcode == barcode))
     product = result.scalar_one_or_none()
@@ -112,6 +119,7 @@ async def upload_photos(
                 height=height,
                 file_size=len(content),
                 uploaded_by=user.id,
+                session_id=session_id,
             )
             db.add(photo)
             await db.flush()
@@ -235,6 +243,82 @@ async def get_photo(
         "urls": urls,
         "created_at": photo.created_at.isoformat() if photo.created_at else None,
     }
+
+
+@router.post("/{photo_id}/reprocess")
+async def reprocess_photo(
+    photo_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-run pipeline for a single photo."""
+    result = await db.execute(select(Photo).where(Photo.id == photo_id, Photo.is_deleted == False))
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="ไม่พบรูปภาพ")
+
+    photo.status = "processing"
+    await db.commit()
+
+    from backend.api.services.pipeline import enqueue_processing
+    from backend.api.routers.settings import _get_config_dict
+    config = await _get_config_dict(db)
+    await enqueue_processing(photo.id, photo.barcode, photo.filename, config)
+
+    return {"message": "เริ่มประมวลผลใหม่", "id": photo_id}
+
+
+@router.post("/batch/delete")
+async def batch_delete(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Soft delete multiple photos."""
+    photo_ids = body.get("photo_ids", [])
+    if not photo_ids or len(photo_ids) > 200:
+        raise HTTPException(status_code=400, detail="ระบุ photo_ids 1-200 รายการ")
+
+    deleted = 0
+    for pid in photo_ids:
+        result = await db.execute(select(Photo).where(Photo.id == pid, Photo.is_deleted == False))
+        photo = result.scalar_one_or_none()
+        if photo and (photo.uploaded_by == user.id or user.role == "admin"):
+            photo.is_deleted = True
+            photo.deleted_at = datetime.utcnow()
+            deleted += 1
+
+    await db.commit()
+    return {"message": f"ลบ {deleted} รูป", "deleted": deleted}
+
+
+@router.post("/batch/reprocess")
+async def batch_reprocess(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-run pipeline for multiple photos."""
+    photo_ids = body.get("photo_ids", [])
+    if not photo_ids or len(photo_ids) > 50:
+        raise HTTPException(status_code=400, detail="ระบุ photo_ids 1-50 รายการ")
+
+    from backend.api.services.pipeline import enqueue_processing
+    from backend.api.routers.settings import _get_config_dict
+    config = await _get_config_dict(db)
+
+    queued = 0
+    for pid in photo_ids:
+        result = await db.execute(select(Photo).where(Photo.id == pid, Photo.is_deleted == False))
+        photo = result.scalar_one_or_none()
+        if photo:
+            photo.status = "processing"
+            await db.flush()
+            await enqueue_processing(photo.id, photo.barcode, photo.filename, config)
+            queued += 1
+
+    await db.commit()
+    return {"message": f"เริ่มประมวลผล {queued} รูป", "queued": queued}
 
 
 @router.delete("/{photo_id}")

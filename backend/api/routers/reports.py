@@ -107,7 +107,7 @@ async def export_html(
             <td>{angles}</td>
         </tr>"""
 
-    html = f"""<!DOCTYPE html>
+    report_html = f"""<!DOCTYPE html>
 <html lang="th"><head><meta charset="UTF-8">
 <title>รายงานภาพสินค้า</title>
 <style>
@@ -132,7 +132,7 @@ th {{ background: #1a1d27; color: #6b7394; }}
 </body></html>"""
 
     return StreamingResponse(
-        io.BytesIO(html.encode("utf-8")),
+        io.BytesIO(report_html.encode("utf-8")),
         media_type="text/html",
         headers={"Content-Disposition": "attachment; filename=report.html"},
     )
