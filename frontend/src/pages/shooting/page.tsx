@@ -158,9 +158,21 @@ export function ShootingPage() {
             )}
           </div>
           <div className="space-y-1.5">
-            {angles.map((angle) => {
+            {angles.map((angle, idx) => {
               const isActive = currentAngle === angle.id;
               const count = angleCounters[angle.id] || 0;
+              // Each angle gets its own color!
+              const colors = [
+                { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500' },
+                { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500' },
+                { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500' },
+                { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' },
+                { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500' },
+                { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' },
+                { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500' },
+                { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500' },
+              ];
+              const c = colors[idx % colors.length];
               return (
                 <button
                   key={angle.id}
@@ -168,7 +180,7 @@ export function ShootingPage() {
                   disabled={!currentBarcode}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-lg shadow-blue-500/25 scale-[1.02]'
+                      ? `bg-gradient-to-r ${c.gradient} text-white shadow-lg ${c.shadow} scale-[1.02]`
                       : 'hover:bg-accent/10 text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
                   }`}
                 >
@@ -177,10 +189,11 @@ export function ShootingPage() {
                   }`}>
                     {angle.key}
                   </kbd>
+                  <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white/60' : c.dot + '/40'}`} />
                   <span className="flex-1 text-left">{angle.label_th}</span>
                   {count > 0 && (
                     <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${
-                      isActive ? 'bg-white/20' : 'bg-primary/10 text-primary'
+                      isActive ? 'bg-white/20' : c.badge
                     }`}>
                       {count}
                     </span>
