@@ -38,6 +38,12 @@ export function DashboardPage() {
     queryFn: () => api.get<DailyItem[]>('/api/stats/daily?days=7'),
   });
 
+  const { data: recentData } = useQuery({
+    queryKey: ['recent-photos'],
+    queryFn: () => api.get<{ data: { id: number; barcode: string; angle: string; thumbnail_url: string; status: string; created_at: string }[] }>('/api/gallery?limit=8&page=1'),
+  });
+  const recent = recentData?.data || [];
+
   const cards = [
     {
       label: 'รูปวันนี้', value: stats?.photos_today || 0, icon: Camera,
@@ -196,6 +202,40 @@ export function DashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* Recent Uploads */}
+        {recent.length > 0 && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <Image className="size-4.5 text-emerald-500" />
+                <h2 className="text-sm font-semibold text-foreground">อัปโหลดล่าสุด</h2>
+              </div>
+              <button onClick={() => navigate('/gallery')} className="text-xs text-primary hover:underline font-medium">
+                ดูทั้งหมด →
+              </button>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-4 lg:grid-cols-8 gap-3">
+                {recent.map((p) => (
+                  <div key={p.id} onClick={() => navigate('/gallery')}
+                    className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md transition-all">
+                    <div className="aspect-square bg-muted relative">
+                      <img src={p.thumbnail_url} alt={p.barcode} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                      <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${
+                        p.status === 'done' ? 'bg-emerald-500' : p.status === 'processing' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground'
+                      }`} />
+                    </div>
+                    <div className="px-2 py-1.5">
+                      <p className="text-2xs font-mono font-semibold text-foreground truncate">{p.barcode}</p>
+                      <p className="text-2xs text-muted-foreground">{p.angle}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

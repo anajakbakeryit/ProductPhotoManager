@@ -3,9 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive, CheckSquare, Square } from 'lucide-react';
+import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive, CheckSquare, Square, Copy, Grid2x2, Grid3x3, LayoutGrid, Tag } from 'lucide-react';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
+import { usePhotoTagStore, PRESET_TAGS } from '@/store/photoTagStore';
 
 interface Photo {
   id: number;
@@ -18,6 +19,30 @@ interface Photo {
   thumbnail_url: string;
   preview_url: string;
   created_at: string;
+}
+
+function PhotoTagBar({ photoId }: { photoId: number }) {
+  const { getTagsForPhoto, addTag, removeTag } = usePhotoTagStore();
+  const tags = getTagsForPhoto(photoId);
+  return (
+    <div className="px-5 py-3 border-t border-border/50 flex items-center gap-2 flex-wrap">
+      <Tag className="size-3.5 text-muted-foreground shrink-0" />
+      {tags.map((t) => (
+        <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-2xs font-medium">
+          {t}
+          <button onClick={() => removeTag(photoId, t)} className="hover:text-destructive">
+            <X className="size-3" />
+          </button>
+        </span>
+      ))}
+      {PRESET_TAGS.filter((t) => !tags.includes(t)).map((t) => (
+        <button key={t} onClick={() => addTag(photoId, t)}
+          className="px-2 py-0.5 rounded-md bg-muted text-2xs text-muted-foreground font-medium hover:bg-muted/80 transition-colors">
+          + {t}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function GalleryPage() {
@@ -33,6 +58,7 @@ export function GalleryPage() {
   const [viewer360Barcode, setViewer360Barcode] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
   const compareRef = useRef<HTMLDivElement>(null);
 
   const toggleSelect = (id: number) => {
@@ -159,6 +185,18 @@ export function GalleryPage() {
               ZIP
             </Button>
           )}
+          <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            {([
+              { key: 'sm' as const, icon: Grid3x3 },
+              { key: 'md' as const, icon: Grid2x2 },
+              { key: 'lg' as const, icon: LayoutGrid },
+            ]).map((g) => (
+              <button key={g.key} onClick={() => setGridSize(g.key)}
+                className={`p-1.5 transition-colors ${gridSize === g.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+                <g.icon className="size-4" />
+              </button>
+            ))}
+          </div>
           {photos.length > 0 && (
             <Button
               variant={selectMode ? 'default' : 'outline'}
@@ -204,7 +242,11 @@ export function GalleryPage() {
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className="grid gap-4 ${
+                gridSize === 'sm' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
+                gridSize === 'lg' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
+                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+              }">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
               <div className="aspect-square bg-muted rounded-t-xl" />
@@ -226,7 +268,11 @@ export function GalleryPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+        <div className="grid gap-4 ${
+                gridSize === 'sm' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
+                gridSize === 'lg' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
+                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+              }">
           {photos.map((photo) => (
             <div
               key={photo.id}
@@ -269,7 +315,16 @@ export function GalleryPage() {
                 }`} />
               </div>
               <div className="p-3">
-                <p className="text-xs font-mono font-semibold text-foreground truncate">{photo.barcode}</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">{photo.barcode}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(photo.barcode); toast.success('คัดลอกบาร์โค้ดแล้ว'); }}
+                    className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    title="คัดลอกบาร์โค้ด"
+                  >
+                    <Copy className="size-3" />
+                  </button>
+                </div>
                 <div className="flex items-center gap-1.5 mt-1.5">
                   <span className="text-2xs px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
                     {photo.angle}
@@ -465,6 +520,8 @@ export function GalleryPage() {
                 )}
               </div>
             </div>
+            {/* Tags */}
+            <PhotoTagBar photoId={detail.id} />
           </div>
         </div>
       )}
