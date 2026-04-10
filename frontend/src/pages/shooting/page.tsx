@@ -117,9 +117,11 @@ export function ShootingPage() {
       <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-3 lg:overflow-y-auto">
 
         {/* Barcode */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-card to-blue-950/20 p-5">
           <div className="flex items-center gap-2 mb-3">
-            <ScanBarcode className="w-4.5 h-4.5 text-primary" />
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
+              <ScanBarcode className="w-4 h-4 text-white" />
+            </div>
             <h3 className="text-sm font-semibold text-foreground">สแกนบาร์โค้ด</h3>
           </div>
           <div className="relative">
@@ -147,8 +149,8 @@ export function ShootingPage() {
         </div>
 
         {/* Angle Selection */}
-        <div className="rounded-2xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-3">มุมถ่ายภาพ</h3>
+        <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-card to-violet-950/20 p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">🎯 มุมถ่ายภาพ</h3>
           <div className="space-y-1.5">
             {angles.map((angle) => {
               const isActive = currentAngle === angle.id;
@@ -184,7 +186,7 @@ export function ShootingPage() {
         </div>
 
         {/* Session Info */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-card to-emerald-950/20 p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">เซสชัน</p>
@@ -206,7 +208,7 @@ export function ShootingPage() {
           className={`flex-1 rounded-2xl border-2 border-dashed transition-all duration-300 flex items-center justify-center relative overflow-hidden ${
             isDragging ? 'border-primary bg-primary/5 shadow-inner scale-[0.99]' :
             uploading ? 'border-amber-400 bg-amber-400/5' :
-            'border-border bg-card hover:border-primary/50'
+            'border-border bg-gradient-to-br from-card to-blue-950/10 hover:border-blue-400/50 hover:shadow-lg hover:shadow-blue-500/5'
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
@@ -250,7 +252,7 @@ export function ShootingPage() {
         </div>
 
         {/* Activity Log */}
-        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+        <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-card to-amber-950/10 overflow-hidden">
           <div className="px-5 py-3 border-b border-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">บันทึกกิจกรรม</h3>
             <span className="flex items-center gap-1.5 text-xs">
