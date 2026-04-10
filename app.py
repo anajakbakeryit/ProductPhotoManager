@@ -9,17 +9,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 import shutil
-import time
 import threading
 import json
 import csv
 from datetime import datetime
-from queue import Queue
 
 from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageCms, ImageTk
-import io
 import html as html_mod
 
 # Try import rembg (optional - will show warning if not installed)
@@ -38,20 +34,20 @@ except ImportError:
     HAS_CV2 = False
 
 
-# =============================================================================
-# CONFIG
-# =============================================================================
-CONFIG_FILE = "config.json"
-PRODUCT_DB_FILE = "products.csv"
-SESSION_FILE = "session_state.json"
-
-# sRGB ICC profile bytes — embedded in every output JPEG for color accuracy
-_SRGB_ICC = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
-
-
-import re
 import logging
 from collections import deque
+
+# =============================================================================
+# IMPORTS FROM MODULES (Phase 2 refactor)
+# =============================================================================
+from core.config import load_config, save_config, DEFAULT_CONFIG
+from core.product_db import ProductDB, PRODUCT_DB_FILE
+from core.image_processor import ImageProcessor
+from core.photo_watcher import PhotoWatcher
+from core.session_manager import SessionManager
+from utils.constants import C, MULTI_RES
+from utils.color_profile import to_srgb as _to_srgb, save_multi_resolution, _SRGB_ICC
+from utils.sanitize import sanitize_barcode as _sanitize_barcode
 
 def _setup_logging() -> logging.Logger:
     """Phase 6: ตั้งค่า logging ให้บันทึกลงไฟล์ด้วย (rotation 5 MB, เก็บ 3 ไฟล์)."""
@@ -84,460 +80,16 @@ def _setup_logging() -> logging.Logger:
 
 logger = _setup_logging()
 
-_BARCODE_UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
-
-def _sanitize_barcode(raw):
-    """Sanitize barcode string for safe use as filename / folder name.
-
-    Removes path separators, traversal sequences, control chars,
-    and characters illegal in Windows filenames.
-    """
-    s = raw.strip()
-    s = _BARCODE_UNSAFE.sub("_", s)   # replace unsafe chars first
-    s = s.replace("..", "")           # block traversal
-    s = s.strip("._ ")               # no leading/trailing dots, underscores, spaces
-    if not s:
-        s = "UNKNOWN"
-    return s[:128]                    # cap length
-
-
-def _to_srgb(img):
-    """Convert image to sRGB with proper color management.
-
-    If image has an embedded ICC profile (e.g., AdobeRGB from Canon 5D),
-    this properly maps pixel values to sRGB so colors and contrast match.
-    Returns RGB image with sRGB ICC profile in .info['icc_profile'].
-    """
-    icc_data = img.info.get("icc_profile")
-
-    if icc_data and icc_data != _SRGB_ICC:
-        # Source has a non-sRGB profile → convert properly
-        try:
-            src_profile = io.BytesIO(icc_data)
-            dst_profile = ImageCms.createProfile("sRGB")
-
-            if img.mode == "RGBA":
-                # Split alpha, convert RGB channels, reattach
-                r, g, b, a = img.split()
-                rgb = Image.merge("RGB", (r, g, b))
-                rgb = ImageCms.profileToProfile(
-                    rgb, src_profile, dst_profile,
-                    renderingIntent=ImageCms.Intent.PERCEPTUAL,
-                    outputMode="RGB"
-                )
-                r2, g2, b2 = rgb.split()
-                img = Image.merge("RGBA", (r2, g2, b2, a))
-            else:
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img = ImageCms.profileToProfile(
-                    img, src_profile, dst_profile,
-                    renderingIntent=ImageCms.Intent.PERCEPTUAL,
-                    outputMode="RGB"
-                )
-        except Exception as e:
-            logger.warning(f"[_to_srgb] ICC แปลงสีล้มเหลว: {e} — ใช้โหมดสีดิบแทน")
-            # Fallback: just convert mode
-            if img.mode not in ("RGB", "RGBA"):
-                img = img.convert("RGB")
-    else:
-        # No profile or already sRGB — just ensure correct mode
-        if img.mode not in ("RGB", "RGBA"):
-            img = img.convert("RGB")
-
-    img.info["icc_profile"] = _SRGB_ICC
-    return img
-
-
-# Multi-resolution presets (long edge in px)
-MULTI_RES = {
-    "S": {"max_px": 480, "quality": 85},
-    "M": {"max_px": 800, "quality": 90},
-    "L": {"max_px": 1200, "quality": 93},
-}
-
-
-def save_multi_resolution(img, folder, base_name, ext=".jpg", is_png=False):
-    """Save image in S/M/L/OG sub-folders.
-
-    Args:
-        img: PIL Image (RGB or RGBA), should already be _to_srgb() converted
-        folder: e.g. output_root/original/barcode
-        base_name: filename without extension, e.g. 'SKU001_front_01'
-        ext: output extension (.jpg or .png)
-        is_png: if True, save as PNG (for cutout with transparency)
-    """
-    icc = img.info.get("icc_profile", _SRGB_ICC)
-
-    # OG - original size
-    og_dir = os.path.join(folder, "OG")
-    os.makedirs(og_dir, exist_ok=True)
-    og_path = os.path.join(og_dir, f"{base_name}_OG{ext}")
-    if is_png:
-        img.save(og_path, "PNG", icc_profile=icc)
-    else:
-        img_rgb = img.convert("RGB") if img.mode != "RGB" else img
-        img_rgb.save(og_path, "JPEG", quality=95, subsampling=0, icc_profile=icc)
-
-    orig_w, orig_h = img.size
-
-    # S / M / L
-    for sz_key, cfg in MULTI_RES.items():
-        sz_dir = os.path.join(folder, sz_key)
-        os.makedirs(sz_dir, exist_ok=True)
-        max_px = cfg["max_px"]
-
-        if orig_w <= max_px and orig_h <= max_px:
-            resized = img
-        else:
-            ratio = min(max_px / orig_w, max_px / orig_h)
-            new_w = int(orig_w * ratio)
-            new_h = int(orig_h * ratio)
-            resized = img.resize((new_w, new_h), Image.LANCZOS)
-
-        sz_path = os.path.join(sz_dir, f"{base_name}_{sz_key}{ext}")
-        if is_png:
-            resized.save(sz_path, "PNG", icc_profile=icc)
-        else:
-            resized_rgb = resized.convert("RGB") if resized.mode != "RGB" else resized
-            resized_rgb.save(sz_path, "JPEG", quality=cfg["quality"],
-                             subsampling=0, icc_profile=icc)
-
-DEFAULT_CONFIG = {
-    "watch_folder": "",
-    "output_folder": "",
-    "watermark_path": "",
-    "watermark_opacity": 40,
-    "watermark_scale": 20,
-    "watermark_position": "bottom-right",
-    "watermark_margin": 30,
-    "bg_color": [255, 255, 255],
-    "image_extensions": [".jpg", ".jpeg", ".cr2", ".cr3", ".arw", ".nef", ".tif", ".tiff", ".png"],
-    "angles": [
-        {"id": "front", "label": "Front", "label_th": "ด้านหน้า", "key": "F1"},
-        {"id": "back", "label": "Back", "label_th": "ด้านหลัง", "key": "F2"},
-        {"id": "left", "label": "Left", "label_th": "ด้านซ้าย", "key": "F3"},
-        {"id": "right", "label": "Right", "label_th": "ด้านขวา", "key": "F4"},
-        {"id": "top", "label": "Top", "label_th": "ด้านบน", "key": "F5"},
-        {"id": "bottom", "label": "Bottom", "label_th": "ด้านล่าง", "key": "F6"},
-        {"id": "detail", "label": "Detail", "label_th": "รายละเอียด", "key": "F7"},
-        {"id": "package", "label": "Package", "label_th": "แพ็คเกจ", "key": "F8"},
-    ],
-    "auto_increment": True,
-    "copy_mode": False,
-    "enable_cutout": True,
-    "enable_watermark": True,
-    "enable_wm_original": True,
-    "spin360_total": 24,
-    "video360_remove_bg": False,
-    "export_folder": "",
-    "import_folder": "",
-}
-
-# =============================================================================
-# COLORS
-# =============================================================================
-C = {
-    "bg":           "#0f1117",
-    "surface":      "#1a1d27",
-    "surface2":     "#232734",
-    "border":       "#2e3348",
-    "text":         "#e2e4ed",
-    "text_dim":     "#6b7394",
-    "text_muted":   "#4a5170",
-    "accent":       "#6c8cff",
-    "accent_hover": "#8ba4ff",
-    "green":        "#4ade80",
-    "green_dim":    "#1a3a2a",
-    "red":          "#f87171",
-    "red_dim":      "#3a1a1a",
-    "yellow":       "#fbbf24",
-    "yellow_dim":   "#3a321a",
-    "orange":       "#fb923c",
-    "purple":       "#a78bfa",
-    "barcode_bg":   "#141720",
-    "btn_idle":     "#282d3e",
-    "btn_active":   "#6c8cff",
-    "btn_hover":    "#323850",
-    "log_bg":       "#0c0e14",
-    "tag_bg":       "#2a2f42",
-}
-
-
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            saved = json.load(f)
-            return {**DEFAULT_CONFIG, **saved}
-    return DEFAULT_CONFIG.copy()
-
-
-def save_config(config):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
-
-
-# =============================================================================
-# PRODUCT DATABASE (CSV)
-# =============================================================================
-class ProductDB:
-    def __init__(self, csv_path):
-        self.csv_path = csv_path
-        self.products = {}
-        self._ensure_file()
-        self.load()
-
-    def _ensure_file(self):
-        if not os.path.exists(self.csv_path):
-            with open(self.csv_path, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow(["barcode", "name", "category", "note"])
-
-    def load(self):
-        self.products = {}
-        with open(self.csv_path, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                barcode = row.get("barcode", "").strip()
-                if barcode:
-                    self.products[barcode] = {
-                        "name": row.get("name", ""),
-                        "category": row.get("category", ""),
-                        "note": row.get("note", ""),
-                    }
-
-    def lookup(self, barcode):
-        return self.products.get(barcode)
-
-    def add(self, barcode, name="", category="", note=""):
-        is_new = barcode not in self.products
-        self.products[barcode] = {"name": name, "category": category, "note": note}
-        if is_new:
-            self._append_one(barcode, name, category, note)
-        else:
-            self._save_all()
-
-    def _append_one(self, barcode, name, category, note):
-        """Append a single row to CSV (fast for new barcodes)."""
-        try:
-            with open(self.csv_path, "a", newline="", encoding="utf-8-sig") as f:
-                csv.writer(f).writerow([barcode, name, category, note])
-        except Exception as e:
-            logger.warning(f"[ProductDB] append ไม่สำเร็จ: {e} — บันทึกใหม่ทั้งหมดแทน")
-            self._save_all()
-
-    def _save_all(self):
-        with open(self.csv_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            writer.writerow(["barcode", "name", "category", "note"])
-            for barcode, info in self.products.items():
-                writer.writerow([barcode, info["name"], info["category"], info["note"]])
-
-
-# =============================================================================
-# IMAGE PROCESSOR (Background Thread)
-# =============================================================================
-class ImageProcessor(threading.Thread):
-    """Background thread that processes images: remove BG → add watermark."""
-
-    def __init__(self, app):
-        super().__init__(daemon=True)
-        self.app = app
-        self.queue = Queue()
-        self._running = True
-
-    def enqueue(self, task):
-        """Add a processing task: dict with original_path, barcode, filename, etc."""
-        self.queue.put(task)
-        self.app.after(0, self.app._update_pipeline_status)
-
-    @property
-    def pending_count(self):
-        return self.queue.qsize()
-
-    def run(self):
-        while self._running:
-            try:
-                task = self.queue.get(timeout=1)
-            except Exception:
-                continue
-            try:
-                self._process(task)
-            except Exception as e:
-                self.app.after(0, self.app.log, f"   ประมวลผลผิดพลาด: {e}", "error")
-
-    def stop(self):
-        self._running = False
-
-    def _process(self, task):
-        original_path = task["original_path"]
-        barcode = task["barcode"]
-        base_name = os.path.splitext(task["filename"])[0]
-        output_root = task["output_root"]
-        config = task["config"]
-
-        watermark_path = config.get("watermark_path", "")
-        has_wm_file = watermark_path and os.path.exists(watermark_path)
-
-        # ── Step 1: Watermark on Original (no BG removal) ──
-        if config.get("enable_wm_original", True):
-            if has_wm_file:
-                self.app.after(0, self.app.log,
-                               f"   กำลังใส่ลายน้ำ (ต้นฉบับ): {task['filename']}...", "dim")
-
-                orig_img = _to_srgb(Image.open(original_path)).convert("RGBA")
-                wm_img = self._add_watermark(orig_img, watermark_path, config)
-
-                # Flatten to RGB
-                bg_color = tuple(config.get("bg_color", [255, 255, 255]))
-                final = Image.new("RGB", wm_img.size, bg_color)
-                final.paste(wm_img, mask=wm_img.split()[3] if wm_img.mode == "RGBA" else None)
-                final.info["icc_profile"] = _SRGB_ICC
-
-                wm_orig_dir = os.path.join(output_root, "watermarked_original", barcode)
-                os.makedirs(wm_orig_dir, exist_ok=True)
-
-                # Multi-resolution only (no root file)
-                save_multi_resolution(final, wm_orig_dir, base_name)
-
-                self.app.after(0, self.app.log,
-                               f"   \u2713 ลายน้ำต้นฉบับ: watermarked_original/{barcode}/ (S/M/L/OG)",
-                               "success")
-            else:
-                self.app.after(0, self.app.log,
-                               "   ยังไม่ได้ตั้งค่าไฟล์ลายน้ำ ข้ามลายน้ำต้นฉบับ", "warning")
-
-        # ── Step 2: Remove background ──
-        if config.get("enable_cutout", True):
-            self.app.after(0, self.app.log,
-                           f"   กำลังลบพื้นหลัง: {task['filename']}...", "dim")
-
-            img = _to_srgb(Image.open(original_path)).convert("RGBA")
-
-            if HAS_REMBG:
-                cutout_img = rembg_remove(img)
-            else:
-                cutout_img = img
-                self.app.after(0, self.app.log,
-                               "   ยังไม่ได้ติดตั้ง rembg ข้ามการลบพื้นหลัง", "warning")
-
-            # Save cutout - multi-resolution only (no root file)
-            cutout_dir = os.path.join(output_root, "cutout", barcode)
-            os.makedirs(cutout_dir, exist_ok=True)
-
-            save_multi_resolution(cutout_img, cutout_dir, base_name, ext=".png", is_png=True)
-
-            self.app.after(0, self.app.log,
-                           f"   \u2713 ลบพื้นหลัง: cutout/{barcode}/ (S/M/L/OG)", "success")
-
-            # ── Step 3: Add watermark on the cutout ──
-            if config.get("enable_watermark", True):
-                if has_wm_file:
-                    wm_img = self._add_watermark(cutout_img, watermark_path, config)
-
-                    bg_color = tuple(config.get("bg_color", [255, 255, 255]))
-                    final = Image.new("RGB", wm_img.size, bg_color)
-                    final.paste(wm_img, mask=wm_img.split()[3] if wm_img.mode == "RGBA" else None)
-                    final.info["icc_profile"] = _SRGB_ICC
-
-                    wm_dir = os.path.join(output_root, "watermarked", barcode)
-                    os.makedirs(wm_dir, exist_ok=True)
-
-                    # Multi-resolution only (no root file)
-                    save_multi_resolution(final, wm_dir, base_name)
-
-                    self.app.after(0, self.app.log,
-                                   f"   \u2713 ลายน้ำ: watermarked/{barcode}/ (S/M/L/OG)",
-                                   "success")
-                else:
-                    self.app.after(0, self.app.log,
-                                   "   ยังไม่ได้ตั้งค่าไฟล์ลายน้ำ ข้าม", "warning")
-
-        # Update pipeline status
-        self.app.after(0, self.app._on_pipeline_done)
-
-    def _add_watermark(self, base_img, watermark_path, config):
-        """Overlay watermark PNG on base image."""
-        wm = Image.open(watermark_path).convert("RGBA")
-
-        # Scale watermark relative to base image
-        scale_pct = config.get("watermark_scale", 20) / 100.0
-        base_w, base_h = base_img.size
-        wm_target_w = int(base_w * scale_pct)
-        wm_ratio = wm_target_w / wm.width
-        wm_target_h = int(wm.height * wm_ratio)
-        wm = wm.resize((wm_target_w, wm_target_h), Image.LANCZOS)
-
-        # Apply opacity
-        opacity = config.get("watermark_opacity", 40) / 100.0
-        alpha = wm.split()[3]
-        alpha = ImageEnhance.Brightness(alpha).enhance(opacity)
-        wm.putalpha(alpha)
-
-        # Position
-        margin = config.get("watermark_margin", 30)
-        position = config.get("watermark_position", "bottom-right")
-
-        if position == "center":
-            x = (base_w - wm_target_w) // 2
-            y = (base_h - wm_target_h) // 2
-        elif position == "bottom-left":
-            x = margin
-            y = base_h - wm_target_h - margin
-        elif position == "top-right":
-            x = base_w - wm_target_w - margin
-            y = margin
-        elif position == "top-left":
-            x = margin
-            y = margin
-        else:  # bottom-right (default)
-            x = base_w - wm_target_w - margin
-            y = base_h - wm_target_h - margin
-
-        # Composite
-        result = base_img.copy()
-        result.paste(wm, (x, y), wm)
-        return result
-
-
-# =============================================================================
-# FILE WATCHER
-# =============================================================================
-class PhotoWatcher(FileSystemEventHandler):
-    def __init__(self, app, extensions):
-        self.app = app
-        self.extensions = [e.lower() for e in extensions]
-        self._processed = set()
-
-    def on_created(self, event):
-        if event.is_directory:
-            return
-        ext = os.path.splitext(event.src_path)[1].lower()
-        if ext in self.extensions:
-            self._wait_and_process(event.src_path)
-
-    def _wait_and_process(self, filepath):
-        def _do():
-            prev_size = -1
-            for _ in range(60):
-                try:
-                    curr_size = os.path.getsize(filepath)
-                    if curr_size == prev_size and curr_size > 0:
-                        break
-                    prev_size = curr_size
-                except OSError:
-                    pass
-                time.sleep(0.5)
-            if filepath not in self._processed:
-                # Limit set size to prevent unbounded memory growth
-                if len(self._processed) > 5000:
-                    # Discard half the oldest entries (set has no order, just trim)
-                    self._processed = set(list(self._processed)[2500:])
-                self._processed.add(filepath)
-                self.app.after(0, self.app.process_new_photo, filepath)
-
-        threading.Thread(target=_do, daemon=True).start()
+# --- Duplicate code removed (Phase 2) ---
+# _sanitize_barcode → imported from utils.sanitize
+# _to_srgb, save_multi_resolution → imported from utils.color_profile
+# C, MULTI_RES → imported from utils.constants
+# load_config, save_config → imported from core.config
+# ProductDB → imported from core.product_db
+# ImageProcessor → imported from core.image_processor
+# PhotoWatcher → imported from core.photo_watcher
+# SessionManager → imported from core.session_manager
 
 
 # =============================================================================
@@ -580,8 +132,14 @@ class ProductPhotoApp(tk.Tk):
         self._session_lock = threading.Lock()
         self._counter_lock = threading.Lock()
 
-        # Image processor thread
-        self.processor = ImageProcessor(self)
+        # Session manager (core/ module)
+        self._session_mgr = SessionManager()
+
+        # Image processor thread (core/ version uses callbacks)
+        self.processor = ImageProcessor(
+            log_fn=lambda msg, tag="": self.after(0, self.log, msg, tag),
+            done_fn=lambda: self.after(0, self._on_pipeline_done),
+        )
         self.processor.start()
 
         self._build_ui()
@@ -1093,19 +651,23 @@ class ProductPhotoApp(tk.Tk):
     # =========================================================================
     # SETTINGS HANDLERS
     # =========================================================================
+    def _update_and_save_config(self, **kwargs):
+        """Thread-safe config update: set keys and persist to disk."""
+        with self._config_lock:
+            self.config.update(kwargs)
+            save_config(self.config)
+
     def browse_watch(self):
         folder = filedialog.askdirectory(title="เลือกโฟลเดอร์ต้นทาง")
         if folder:
             self.watch_folder_var.set(folder)
-            self.config["watch_folder"] = folder
-            save_config(self.config)
+            self._update_and_save_config(watch_folder=folder)
 
     def browse_output(self):
         folder = filedialog.askdirectory(title="เลือกโฟลเดอร์ปลายทาง")
         if folder:
             self.output_folder_var.set(folder)
-            self.config["output_folder"] = folder
-            save_config(self.config)
+            self._update_and_save_config(output_folder=folder)
 
     def browse_watermark(self):
         path = filedialog.askopenfilename(
@@ -1114,36 +676,31 @@ class ProductPhotoApp(tk.Tk):
         )
         if path:
             self.wm_path_var.set(path)
-            self.config["watermark_path"] = path
-            save_config(self.config)
+            self._update_and_save_config(watermark_path=path)
             self.log(f"ตั้งค่าลายน้ำ: {os.path.basename(path)}", "info")
 
     def _on_toggle_cutout(self):
-        self.config["enable_cutout"] = self.cutout_var.get()
-        save_config(self.config)
+        self._update_and_save_config(enable_cutout=self.cutout_var.get())
 
     def _on_toggle_watermark(self):
-        self.config["enable_watermark"] = self.wm_var.get()
-        save_config(self.config)
+        self._update_and_save_config(enable_watermark=self.wm_var.get())
 
     def _on_toggle_wm_original(self):
-        self.config["enable_wm_original"] = self.wm_orig_var.get()
-        save_config(self.config)
+        self._update_and_save_config(enable_wm_original=self.wm_orig_var.get())
 
     def _save_wm_settings(self):
-        self.config["watermark_opacity"] = self.opacity_var.get()
-        self.config["watermark_scale"] = self.wm_scale_var.get()
-        self.config["watermark_position"] = self.position_var.get()
-        self.config["watermark_path"] = self.wm_path_var.get()
-        save_config(self.config)
+        self._update_and_save_config(
+            watermark_opacity=self.opacity_var.get(),
+            watermark_scale=self.wm_scale_var.get(),
+            watermark_position=self.position_var.get(),
+            watermark_path=self.wm_path_var.get(),
+        )
 
     def _save_spin_settings(self):
-        self.config["spin360_total"] = self.spin_total_var.get()
-        save_config(self.config)
+        self._update_and_save_config(spin360_total=self.spin_total_var.get())
 
     def _on_toggle_video360_bg(self):
-        self.config["video360_remove_bg"] = self.video360_bg_var.get()
-        save_config(self.config)
+        self._update_and_save_config(video360_remove_bg=self.video360_bg_var.get())
 
     # =========================================================================
     # VIDEO → 360°
@@ -1197,6 +754,26 @@ class ProductPhotoApp(tk.Tk):
         self.video360_btn.configure(state="disabled", text="กำลังประมวลผล...", bg=C["text_muted"])
 
         bg_color = tuple(self.config.get("bg_color", [255, 255, 255]))
+
+        # Phase 4.2: Create progress dialog for video extraction
+        progress_win = tk.Toplevel(self)
+        progress_win.title("กำลังแยกเฟรมวิดีโอ...")
+        progress_win.geometry("400x120")
+        progress_win.configure(bg=C["surface"])
+        progress_win.resizable(False, False)
+        progress_win.transient(self)
+
+        self._v360_progress_label = tk.Label(
+            progress_win, text=f"กำลังแยกเฟรม 0/{total_frames} (0%)",
+            font=("Segoe UI", 11), fg=C["text"], bg=C["surface"],
+        )
+        self._v360_progress_label.pack(pady=(16, 8))
+
+        self._v360_progress_bar = ttk.Progressbar(
+            progress_win, length=350, maximum=total_frames, mode="determinate",
+        )
+        self._v360_progress_bar.pack(pady=(0, 16))
+        self._v360_progress_win = progress_win
 
         # Run extraction in background thread
         threading.Thread(
@@ -1405,6 +982,8 @@ class ProductPhotoApp(tk.Tk):
                     self.after(0, lambda p=pct, n=frame_num, t=bg_tag: self.log(
                         f"   เฟรม {n}/{total_frames} ({p}%){t}", "dim"
                     ))
+                    # Phase 4.2: Update visual progress bar
+                    self.after(0, lambda n=frame_num, p=pct: self._update_v360_progress(n, total_frames, p))
 
             cap.release()
 
@@ -1443,8 +1022,22 @@ class ProductPhotoApp(tk.Tk):
             self.after(0, lambda: self.log(f"   ✗ วิดีโอ → 360° ล้มเหลว: {e}", "error"))
             self.after(0, self._video360_btn_reset)
 
+    def _update_v360_progress(self, current, total, pct):
+        """Phase 4.2: Update the video extraction progress dialog."""
+        if hasattr(self, '_v360_progress_bar') and self._v360_progress_win.winfo_exists():
+            self._v360_progress_bar.configure(value=current)
+            self._v360_progress_label.configure(
+                text=f"กำลังแยกเฟรม {current}/{total} ({pct}%)"
+            )
+
+    def _close_v360_progress(self):
+        """Close the video extraction progress dialog."""
+        if hasattr(self, '_v360_progress_win') and self._v360_progress_win.winfo_exists():
+            self._v360_progress_win.destroy()
+
     def _video360_btn_reset(self):
         """Reset the VIDEO → 360° button back to normal state."""
+        self._close_v360_progress()
         self.video360_btn.configure(
             state="normal", text="วิดีโอ → 360°", bg="#8e44ad"
         )
@@ -2088,8 +1681,8 @@ viewer.addEventListener('mousedown', stopAuto);
                     stat = shutil.disk_usage(output_root)
                     free_gb = stat.free / (1024 ** 3)
                     self.log(f"   💾 พื้นที่เหลือ: {free_gb:.1f} GB", "dim")
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.warning(f"[disk] ตรวจพื้นที่ดิสก์ไม่ได้: {e}")
 
     # =========================================================================
     # BARCODE
@@ -2198,15 +1791,16 @@ viewer.addEventListener('mousedown', stopAuto);
             messagebox.showerror("ข้อผิดพลาด", "กรุณาเลือกโฟลเดอร์ปลายทาง")
             return
 
-        self.config["watch_folder"] = watch_dir
-        self.config["output_folder"] = output_dir
-        save_config(self.config)
+        self._update_and_save_config(watch_folder=watch_dir, output_folder=output_dir)
 
         # Create all output sub-directories
         for sub in ["original", "cutout", "watermarked", "watermarked_original", "360"]:
             os.makedirs(os.path.join(output_dir, sub), exist_ok=True)
 
-        handler = PhotoWatcher(self, self.config["image_extensions"])
+        handler = PhotoWatcher(
+            on_new_photo=lambda fp: self.after(0, self.process_new_photo, fp),
+            extensions=self.config["image_extensions"],
+        )
         self.observer = Observer()
         self.observer.schedule(handler, watch_dir, recursive=False)
         self.observer.start()
@@ -2222,7 +1816,7 @@ viewer.addEventListener('mousedown', stopAuto);
     def stop_watching(self):
         if self.observer:
             self.observer.stop()
-            self.observer.join()
+            self.observer.join(timeout=5)
             self.observer = None
         self.is_watching = False
         self.watch_btn.configure(text="เริ่ม", bg=C["green"])
@@ -2261,7 +1855,14 @@ viewer.addEventListener('mousedown', stopAuto);
 
             original_dir = os.path.join(output_root, "original", barcode)
             os.makedirs(original_dir, exist_ok=True)
+
+            # Collision check: if filename already exists, bump counter
             original_path = os.path.join(original_dir, new_filename)
+            while os.path.exists(original_path):
+                count += 1
+                self.spin360_counter = count
+                new_filename = f"{barcode}_360_{count:02d}{ext}"
+                original_path = os.path.join(original_dir, new_filename)
 
             try:
                 if self.config.get("copy_mode"):
@@ -2331,7 +1932,14 @@ viewer.addEventListener('mousedown', stopAuto);
         # Save original to original/ subfolder
         original_dir = os.path.join(output_root, "original", barcode)
         os.makedirs(original_dir, exist_ok=True)
+
+        # Collision check: if filename already exists, bump counter
         original_path = os.path.join(original_dir, new_filename)
+        while os.path.exists(original_path):
+            count += 1
+            self.angle_counters[angle] = count
+            new_filename = f"{barcode}_{angle}_{count:02d}{ext}"
+            original_path = os.path.join(original_dir, new_filename)
 
         try:
             if self.config.get("copy_mode"):
@@ -2393,12 +2001,14 @@ viewer.addEventListener('mousedown', stopAuto);
                 self.pipeline_badge.configure(
                     text=f"  กำลังประมวลผล {self.pipeline_pending}  ", fg=C["orange"]
                 )
+                with self._config_lock:
+                    config_snapshot = self.config.copy()
                 self.processor.enqueue({
                     "original_path": og_path,
                     "barcode": barcode,
                     "filename": new_filename,
                     "output_root": output_root,
-                    "config": self.config.copy(),
+                    "config": config_snapshot,
                 })
 
         except Exception as e:
@@ -2415,8 +2025,8 @@ viewer.addEventListener('mousedown', stopAuto);
             line_count = int(self.log_text.index("end-1c").split(".")[0])
             if line_count > 1000:
                 self.log_text.delete("1.0", f"{line_count - 500}.0")
-        except Exception:
-            pass
+        except (tk.TclError, ValueError):
+            pass  # log widget index parse failure — non-critical
         line = f"  {timestamp}  {message}\n"
         if tag:
             self.log_text.insert("end", line, tag)
@@ -2430,71 +2040,56 @@ viewer.addEventListener('mousedown', stopAuto);
     # =========================================================================
     def _save_session(self):
         """Auto-save session state to disk for crash recovery."""
-        state = {
-            "current_barcode": self.current_barcode,
-            "current_angle": self.current_angle,
-            "angle_counters": self.angle_counters,
-            "spin360_counter": self.spin360_counter,
-            "session_photos": self.session_photos[-500:],  # cap at 500
-            "saved_at": datetime.now().isoformat(),
-        }
-        try:
-            with open(SESSION_FILE, "w", encoding="utf-8") as f:
-                json.dump(state, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.warning(f"[session] บันทึก session ไม่สำเร็จ: {e}")
+        self._session_mgr.save(
+            current_barcode=self.current_barcode,
+            current_angle=self.current_angle,
+            angle_counters=self.angle_counters,
+            spin360_counter=self.spin360_counter,
+            session_photos=self.session_photos,
+        )
 
     def _restore_session(self):
         """Restore session state from disk if available."""
-        if not os.path.exists(SESSION_FILE):
+        state = self._session_mgr.load()
+        if not state:
             return
-        try:
-            with open(SESSION_FILE, "r", encoding="utf-8") as f:
-                state = json.load(f)
 
-            photos = state.get("session_photos", [])
-            if not photos:
-                return
+        photos = state.get("session_photos", [])
+        if not photos:
+            return
 
-            saved_at = state.get("saved_at", "unknown")
-            ok = messagebox.askyesno(
-                "กู้คืนเซสชัน",
-                f"พบเซสชันก่อนหน้า ({len(photos)} รูป, บันทึกเมื่อ {saved_at})\n\n"
-                "ต้องการกู้คืนบาร์โค้ด มุมถ่าย และตัวนับหรือไม่?",
+        saved_at = state.get("saved_at", "unknown")
+        ok = messagebox.askyesno(
+            "กู้คืนเซสชัน",
+            f"พบเซสชันก่อนหน้า ({len(photos)} รูป, บันทึกเมื่อ {saved_at})\n\n"
+            "ต้องการกู้คืนบาร์โค้ด มุมถ่าย และตัวนับหรือไม่?",
+        )
+        if not ok:
+            return
+
+        self.session_photos = photos
+        self.current_barcode = state.get("current_barcode", "")
+        self.current_angle = state.get("current_angle", "")
+        self.angle_counters = state.get("angle_counters", {})
+        self.spin360_counter = state.get("spin360_counter", 0)
+
+        total = len(self.session_photos)
+        self.photo_count_label.configure(text=f"{total} รูป")
+        self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
+
+        if self.current_barcode:
+            self.current_state_label.configure(
+                text=f"{self.current_barcode}  --  กู้คืนแล้ว ({total} รูป)",
+                fg=C["green"]
             )
-            if not ok:
-                return
 
-            self.session_photos = photos
-            self.current_barcode = state.get("current_barcode", "")
-            self.current_angle = state.get("current_angle", "")
-            self.angle_counters = state.get("angle_counters", {})
-            self.spin360_counter = state.get("spin360_counter", 0)
+        # Restore angle counter labels
+        for aid, cnt in self.angle_counters.items():
+            if aid in self.angle_buttons and cnt > 0:
+                _, _, _, cnt_lbl = self.angle_buttons[aid]
+                cnt_lbl.configure(text=f"{cnt}")
 
-            total = len(self.session_photos)
-            self.photo_count_label.configure(text=f"{total} รูป")
-            self.session_badge.configure(text=f"  เซสชัน: {total} รูป  ")
-
-            if self.current_barcode:
-                self.current_state_label.configure(
-                    text=f"{self.current_barcode}  --  กู้คืนแล้ว ({total} รูป)",
-                    fg=C["green"]
-                )
-
-            # Restore angle counter labels
-            for aid, cnt in self.angle_counters.items():
-                if aid in self.angle_buttons and cnt > 0:
-                    _, _, _, cnt_lbl = self.angle_buttons[aid]
-                    cnt_lbl.configure(text=f"{cnt}")
-
-            self.log(f"กู้คืนเซสชัน: {total} รูป, บาร์โค้ด={self.current_barcode}", "success")
-        except Exception as e:
-            logger.warning(f"[session] กู้คืน session ไม่สำเร็จ: {e}")
-            self.log("⚠ ข้อมูล session เสียหาย ไม่สามารถกู้คืนได้", "warning")
-            try:
-                os.remove(SESSION_FILE)
-            except OSError:
-                pass
+        self.log(f"กู้คืนเซสชัน: {total} รูป, บาร์โค้ด={self.current_barcode}", "success")
 
     # =========================================================================
     # SETTINGS WINDOW
@@ -2763,28 +2358,9 @@ viewer.addEventListener('mousedown', stopAuto);
 
     def _save_settings(self, win):
         """Save all settings from the Settings window to config."""
-        # Folders
-        self.config["watch_folder"] = self._st_watch_var.get()
-        self.config["output_folder"] = self._st_output_var.get()
-        self.config["export_folder"] = self._st_export_var.get()
-        self.config["import_folder"] = self._st_import_var.get()
-        self.config["copy_mode"] = self._st_copy_mode.get()
-
-        # Watermark
-        self.config["watermark_path"] = self._st_wm_path.get()
-        self.config["watermark_opacity"] = self._st_opacity.get()
-        self.config["watermark_scale"] = self._st_wm_scale.get()
-        self.config["watermark_position"] = self._st_position.get()
-        self.config["watermark_margin"] = self._st_margin.get()
-
-        # Pipeline
-        self.config["enable_cutout"] = self._st_cutout.get()
-        self.config["enable_watermark"] = self._st_wm.get()
-        self.config["enable_wm_original"] = self._st_wm_orig.get()
-
-        # BG Color
+        # BG Color — validate first before acquiring lock
         try:
-            self.config["bg_color"] = [
+            bg_color = [
                 max(0, min(255, self._st_bg_r.get())),
                 max(0, min(255, self._st_bg_g.get())),
                 max(0, min(255, self._st_bg_b.get())),
@@ -2793,17 +2369,40 @@ viewer.addEventListener('mousedown', stopAuto);
             messagebox.showerror("ข้อผิดพลาด", f"ค่าสีพื้นหลังไม่ถูกต้อง: {e}\nต้องเป็นตัวเลข 0-255", parent=win)
             return
 
-        # 360
-        self.config["spin360_total"] = self._st_spin_total.get()
-        self.config["video360_remove_bg"] = self._st_v360_bg.get()
-
-        # Extensions
         ext_str = self._st_extensions.get()
         exts = [e.strip() for e in ext_str.replace(";", ",").split(",") if e.strip()]
-        if exts:
-            self.config["image_extensions"] = exts
 
         with self._config_lock:
+            # Folders
+            self.config["watch_folder"] = self._st_watch_var.get()
+            self.config["output_folder"] = self._st_output_var.get()
+            self.config["export_folder"] = self._st_export_var.get()
+            self.config["import_folder"] = self._st_import_var.get()
+            self.config["copy_mode"] = self._st_copy_mode.get()
+
+            # Watermark
+            self.config["watermark_path"] = self._st_wm_path.get()
+            self.config["watermark_opacity"] = self._st_opacity.get()
+            self.config["watermark_scale"] = self._st_wm_scale.get()
+            self.config["watermark_position"] = self._st_position.get()
+            self.config["watermark_margin"] = self._st_margin.get()
+
+            # Pipeline
+            self.config["enable_cutout"] = self._st_cutout.get()
+            self.config["enable_watermark"] = self._st_wm.get()
+            self.config["enable_wm_original"] = self._st_wm_orig.get()
+
+            # BG Color
+            self.config["bg_color"] = bg_color
+
+            # 360
+            self.config["spin360_total"] = self._st_spin_total.get()
+            self.config["video360_remove_bg"] = self._st_v360_bg.get()
+
+            # Extensions
+            if exts:
+                self.config["image_extensions"] = exts
+
             save_config(self.config)
 
         # Sync main UI variables

@@ -1,10 +1,14 @@
+# Core dependencies
 watchdog==4.0.0
 Pillow==10.4.0
-numpy<2
-onnxruntime==1.17.1
-rembg==2.0.57
-opencv-python==4.9.0.80
+
+# Optional: needed for background removal (rembg) and video→360° (opencv)
+numpy>=1.24,<2.0
+onnxruntime==1.17.1    # optional: required by rembg
+rembg==2.0.57          # optional: background removal
+opencv-python==4.9.0.80  # optional: video frame extraction
 
 # Dev / testing
 pytest>=8.0
 pytest-cov>=5.0
+ruff>=0.4.0
