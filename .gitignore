@@ -45,3 +45,6 @@ storage/
 
 # PyInstaller spec (generated)
 *.spec
+
+# Dev mode marker
+backend/__installed__
