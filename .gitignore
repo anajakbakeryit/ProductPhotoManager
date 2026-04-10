@@ -48,3 +48,10 @@ storage/
 
 # Dev mode marker
 backend/__installed__
+
+# Legacy desktop app artifacts
+config.json
+products.csv
+build/
+dist/
+Output/
