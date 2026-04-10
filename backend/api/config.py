@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://ppm_user:localdev@localhost:5432/productphotomanager"
 
-    # JWT
-    jwt_secret: str = "local-dev-secret-change-in-production"
+    # JWT — override in production via JWT_SECRET env var
+    jwt_secret: str = "local-dev-secret-DO-NOT-USE-IN-PRODUCTION"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480  # 8 hours
 
@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     app_name: str = "ProductPhotoManager"
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # Dev mode: skip auth (no login required)
-    dev_mode: bool = True
+    # Dev mode: skip auth (set DEV_MODE=true in .env for local dev)
+    dev_mode: bool = False
 
     # Initial admin (created on first run)
     admin_username: str = "admin"

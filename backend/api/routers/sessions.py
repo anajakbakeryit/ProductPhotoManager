@@ -37,12 +37,14 @@ async def start_session(
 async def end_session(
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="ไม่พบเซสชัน")
+    if session.user_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์จบเซสชันนี้")
 
     session.is_active = False
     session.ended_at = datetime.utcnow()

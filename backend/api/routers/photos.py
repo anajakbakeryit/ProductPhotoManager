@@ -5,10 +5,8 @@ import os
 import logging
 import tempfile
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
-
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
 
@@ -20,9 +18,6 @@ from utils.color_profile import to_srgb, save_multi_resolution
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Background thread pool for image processing
-_pipeline_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pipeline")
 
 
 @router.post("/upload")
@@ -53,16 +48,31 @@ async def upload_photos(
     )
     current_max = count_result.scalar() or 0
 
+    # Validate file count + extensions
+    ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".cr2", ".cr3", ".arw", ".nef"}
+    MAX_FILES = 50
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB per file
+
+    if len(files) > MAX_FILES:
+        raise HTTPException(status_code=400, detail=f"อัปโหลดได้สูงสุด {MAX_FILES} ไฟล์ต่อครั้ง")
+
+    # Validate angle
+    ALLOWED_ANGLES = {"front", "back", "left", "right", "top", "bottom", "detail", "package", "360"}
+    if angle not in ALLOWED_ANGLES:
+        raise HTTPException(status_code=400, detail=f"มุมถ่าย '{angle}' ไม่ถูกต้อง")
+
     uploaded = []
     for file in files:
         current_max += 1
         ext = os.path.splitext(file.filename or ".jpg")[1].lower()
-        if not ext:
-            ext = ".jpg"
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"ไม่รองรับไฟล์นามสกุล {ext}")
         filename = f"{barcode}_{angle}_{current_max:02d}{ext}"
 
-        # Save to temp file for processing
+        # Save to temp file for processing (with size limit)
         content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"ไฟล์ {file.filename} ใหญ่เกิน 100 MB")
         with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             tmp.write(content)
             tmp_path = tmp.name
@@ -129,6 +139,13 @@ async def upload_photos(
     # Update product photo count
     product.photo_count = (product.photo_count or 0) + len(uploaded)
     await db.commit()
+
+    # Enqueue background processing for each photo (cutout + watermark)
+    from backend.api.services.pipeline import enqueue_processing
+    from backend.api.routers.settings import _get_config_dict
+    config = await _get_config_dict(db)
+    for item in uploaded:
+        await enqueue_processing(item["id"], barcode, item["filename"], config)
 
     return {"uploaded": uploaded, "total": len(uploaded)}
 
@@ -224,13 +241,15 @@ async def get_photo(
 async def delete_photo(
     photo_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    """Soft delete a photo."""
+    """Soft delete a photo (owner or admin only)."""
     result = await db.execute(select(Photo).where(Photo.id == photo_id))
     photo = result.scalar_one_or_none()
     if not photo:
         raise HTTPException(status_code=404, detail="ไม่พบรูปภาพ")
+    if photo.uploaded_by != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์ลบรูปภาพนี้")
 
     photo.is_deleted = True
     photo.deleted_at = datetime.utcnow()
@@ -247,15 +266,17 @@ async def delete_photo(
 async def undo_delete(
     photo_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
-    """Restore a soft-deleted photo."""
+    """Restore a soft-deleted photo (owner or admin only)."""
     result = await db.execute(
         select(Photo).where(Photo.id == photo_id, Photo.is_deleted == True)
     )
     photo = result.scalar_one_or_none()
     if not photo:
         raise HTTPException(status_code=404, detail="ไม่พบรูปภาพที่ลบ")
+    if photo.uploaded_by != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="ไม่มีสิทธิ์กู้คืนรูปภาพนี้")
 
     photo.is_deleted = False
     photo.deleted_at = None

@@ -4,13 +4,12 @@ ProductPhotoManager — FastAPI Application
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
 from backend.api.config import settings
-from backend.api.deps import engine, async_session
+from backend.api.deps import engine, async_session, get_current_user
 from backend.api.models.db import Base, User, AppSettings
 from fastapi import WebSocket, WebSocketDisconnect
 from backend.api.routers import auth, products, photos
@@ -95,11 +94,17 @@ async def ws_processing(websocket: WebSocket):
         ws_manager.disconnect(websocket)
 
 
-# Serve local storage files (dev only)
-import os
-storage_path = os.path.abspath(settings.storage_local_path)
-if os.path.isdir(storage_path):
-    app.mount("/api/storage", StaticFiles(directory=storage_path), name="storage")
+# Serve storage files with auth check (dev mode skips auth via deps)
+from fastapi.responses import FileResponse as _FileResponse
+
+@app.get("/api/storage/{path:path}")
+async def serve_storage(path: str, _user=Depends(get_current_user)):
+    """Serve storage files with authentication."""
+    from backend.api.services.storage import get_storage
+    storage = get_storage()
+    if not storage.exists(path):
+        raise HTTPException(status_code=404, detail="ไม่พบไฟล์")
+    return _FileResponse(storage.get_path(path))
 
 
 @app.get("/api/health")

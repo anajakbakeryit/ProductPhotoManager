@@ -145,9 +145,39 @@ def _process_photo_sync(photo_id: int, barcode: str, filename: str, config: dict
 
 async def enqueue_processing(photo_id: int, barcode: str, filename: str, config: dict):
     """Enqueue photo for background processing. Returns immediately."""
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(
-        _executor,
-        _process_photo_sync,
-        photo_id, barcode, filename, config,
-    )
+    loop = asyncio.get_running_loop()
+
+    def _run_and_update():
+        results = _process_photo_sync(photo_id, barcode, filename, config)
+        # Update DB with results (sync, runs in thread)
+        _update_photo_status(photo_id, results)
+
+    loop.run_in_executor(_executor, _run_and_update)
+
+
+def _update_photo_status(photo_id: int, results: dict):
+    """Update photo record after pipeline completes (sync, called from thread)."""
+    from sqlalchemy import create_engine, update
+    from sqlalchemy.orm import Session as SyncSession
+    from backend.api.config import settings as app_settings
+    from backend.api.models.db import Photo
+
+    # Use sync engine for thread context
+    sync_url = app_settings.database_url.replace("+asyncpg", "").replace("+aiosqlite", "")
+    sync_engine = create_engine(sync_url)
+    try:
+        with SyncSession(sync_engine) as session:
+            session.execute(
+                update(Photo).where(Photo.id == photo_id).values(
+                    status=results.get("status", "error"),
+                    has_cutout=results.get("has_cutout", False),
+                    has_watermark=results.get("has_watermark", False),
+                    has_wm_original=results.get("has_wm_original", False),
+                )
+            )
+            session.commit()
+        logger.info(f"[pipeline] photo {photo_id}: DB updated → {results.get('status')}")
+    except Exception as e:
+        logger.error(f"[pipeline] photo {photo_id}: DB update failed: {e}")
+    finally:
+        sync_engine.dispose()

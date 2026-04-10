@@ -2,6 +2,7 @@
 Reports router — export HTML/CSV summaries.
 """
 import csv
+import html
 import io
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -96,12 +97,12 @@ async def export_html(
     rows_html = ""
     for r in summary:
         angles = " ".join(
-            f'<span class="badge">{a}: {c}</span>' for a, c in r["angles"].items()
+            f'<span class="badge">{html.escape(a)}: {c}</span>' for a, c in r["angles"].items()
         )
         rows_html += f"""<tr>
-            <td>{r["barcode"]}</td>
-            <td>{r["name"]}</td>
-            <td>{r["category"]}</td>
+            <td>{html.escape(r["barcode"])}</td>
+            <td>{html.escape(r["name"])}</td>
+            <td>{html.escape(r["category"])}</td>
             <td>{r["total_photos"]}</td>
             <td>{angles}</td>
         </tr>"""
