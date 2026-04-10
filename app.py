@@ -156,470 +156,257 @@ class ProductPhotoApp(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     # =========================================================================
-    # UI BUILD
+    # UI BUILD (v2 — Two-column layout)
     # =========================================================================
     def _build_ui(self):
-        # Scrollable main container
-        outer = tk.Frame(self, bg=C["bg"])
-        outer.pack(fill="both", expand=True)
+        from ui import create_card, create_button, create_badge, create_entry, SP, \
+            FONT_TITLE, FONT_HEADING, FONT_BODY, FONT_SMALL, FONT_MONO, FONT_MONO_LG
 
-        canvas = tk.Canvas(outer, bg=C["bg"], highlightthickness=0)
-        vsb = tk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=vsb.set)
-        vsb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        main = tk.Frame(canvas, bg=C["bg"], padx=16, pady=12)
-        main_window = canvas.create_window((0, 0), window=main, anchor="nw")
-
-        def _on_configure(e):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-            canvas.itemconfig(main_window, width=canvas.winfo_width())
-        main.bind("<Configure>", _on_configure)
-        canvas.bind("<Configure>", _on_configure)
-
-        def _on_mousewheel(e):
-            canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-
-        # --- HEADER ---
-        header = tk.Frame(main, bg=C["bg"])
-        header.pack(fill="x", pady=(0, 12))
-
-        tk.Label(header, text="ระบบจัดการถ่ายภาพสินค้า",
-                 font=("Segoe UI Semibold", 16), fg=C["text"], bg=C["bg"]
-                 ).pack(side="left")
-
-        self.session_badge = tk.Label(
-            header, text="  เซสชัน: 0 รูป  ",
-            font=("Segoe UI", 9), fg=C["text_dim"], bg=C["tag_bg"], padx=10, pady=3
-        )
-        self.session_badge.pack(side="right")
-
-        tk.Button(
-            header, text="ตั้งค่า", font=("Segoe UI Semibold", 9),
-            fg=C["text_dim"], bg=C["surface2"], activebackground=C["btn_hover"],
-            activeforeground=C["text"], relief="flat", cursor="hand2",
-            padx=10, pady=2, command=self._open_settings
-        ).pack(side="right", padx=(0, 4))
-
-        self.import_btn = tk.Button(
-            header, text="นำเข้า", font=("Segoe UI Semibold", 9),
-            fg=C["green"], bg=C["surface2"], activebackground=C["btn_hover"],
-            activeforeground=C["green"], relief="flat", cursor="hand2",
-            padx=10, pady=2, command=self.import_photos
-        )
-        self.import_btn.pack(side="right", padx=(0, 4))
-
-        self.export_btn = tk.Button(
-            header, text="ส่งออก", font=("Segoe UI Semibold", 9),
-            fg=C["accent"], bg=C["surface2"], activebackground=C["btn_hover"],
-            activeforeground=C["accent"], relief="flat", cursor="hand2",
-            padx=10, pady=2, command=self.export_report
-        )
-        self.export_btn.pack(side="right", padx=(0, 4))
-
-        self.undo_btn = tk.Button(
-            header, text="เลิกทำ", font=("Segoe UI Semibold", 9),
-            fg=C["red"], bg=C["surface2"], activebackground=C["btn_hover"],
-            activeforeground=C["red"], relief="flat", cursor="hand2",
-            padx=10, pady=2, command=self.undo_last_photo
-        )
-        self.undo_btn.pack(side="right", padx=(0, 4))
-
-        # --- TOP ROW: Folders + Pipeline + Status ---
-        top_row = tk.Frame(main, bg=C["bg"])
-        top_row.pack(fill="x", pady=(0, 8))
-
-        # Left: Folders
-        folders_panel = tk.Frame(top_row, bg=C["surface"], padx=16, pady=12,
-                                 highlightbackground=C["border"], highlightthickness=1)
-        folders_panel.pack(side="left", fill="both", expand=True, padx=(0, 6))
-
-        tk.Label(folders_panel, text="โฟลเดอร์",
-                 font=("Segoe UI Semibold", 9), fg=C["text_dim"], bg=C["surface"]
-                 ).grid(row=0, column=0, sticky="w", columnspan=3, pady=(0, 8))
-
-        tk.Label(folders_panel, text="ต้นทาง", font=("Segoe UI", 10),
-                 fg=C["text_muted"], bg=C["surface"]).grid(row=1, column=0, sticky="w", padx=(0, 8))
-        self.watch_folder_var = tk.StringVar(value=self.config["watch_folder"])
-        tk.Entry(folders_panel, textvariable=self.watch_folder_var, font=("Segoe UI", 10),
-                 bg=C["surface2"], fg=C["text"], relief="flat", insertbackground=C["text"],
-                 highlightthickness=0).grid(row=1, column=1, sticky="ew", padx=(0, 6), ipady=3)
-        self._make_browse_btn(folders_panel, self.browse_watch).grid(row=1, column=2)
-
-        tk.Label(folders_panel, text="ปลายทาง", font=("Segoe UI", 10),
-                 fg=C["text_muted"], bg=C["surface"]).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=(6, 0))
-        self.output_folder_var = tk.StringVar(value=self.config["output_folder"])
-        tk.Entry(folders_panel, textvariable=self.output_folder_var, font=("Segoe UI", 10),
-                 bg=C["surface2"], fg=C["text"], relief="flat", insertbackground=C["text"],
-                 highlightthickness=0).grid(row=2, column=1, sticky="ew", padx=(0, 6), ipady=3, pady=(6, 0))
-        self._make_browse_btn(folders_panel, self.browse_output).grid(row=2, column=2, pady=(6, 0))
-
-        folders_panel.columnconfigure(1, weight=1)
-
-        # Right: Status
-        status_panel = tk.Frame(top_row, bg=C["surface"], padx=16, pady=12,
-                                highlightbackground=C["border"], highlightthickness=1, width=200)
-        status_panel.pack(side="right", fill="y", padx=(6, 0))
-        status_panel.pack_propagate(False)
-
-        tk.Label(status_panel, text="สถานะ", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(anchor="w")
-
-        si = tk.Frame(status_panel, bg=C["surface"])
-        si.pack(fill="x", pady=(10, 6))
-        self.status_dot = tk.Label(si, text="\u25cf", font=("Segoe UI", 14),
-                                   fg=C["red"], bg=C["surface"])
-        self.status_dot.pack(side="left")
-        self.status_text = tk.Label(si, text="  หยุดอยู่", font=("Segoe UI Semibold", 11),
-                                    fg=C["red"], bg=C["surface"])
-        self.status_text.pack(side="left")
-
-        self.watch_btn = tk.Button(
-            status_panel, text="เริ่ม", font=("Segoe UI Semibold", 11),
-            fg=C["bg"], bg=C["green"], activebackground=C["accent_hover"],
-            relief="flat", cursor="hand2", padx=20, pady=4, command=self.toggle_watching
-        )
-        self.watch_btn.pack(fill="x", pady=(8, 0))
-
-        # --- POST-PROCESSING PIPELINE ---
-        pipeline_section = tk.Frame(main, bg=C["surface"], padx=20, pady=14,
-                                    highlightbackground=C["border"], highlightthickness=1)
-        pipeline_section.pack(fill="x", pady=(0, 8))
-
-        pp_header = tk.Frame(pipeline_section, bg=C["surface"])
-        pp_header.pack(fill="x", pady=(0, 10))
-
-        tk.Label(pp_header, text="ขั้นตอนประมวลผล",
-                 font=("Segoe UI Semibold", 9), fg=C["text_dim"], bg=C["surface"]
-                 ).pack(side="left")
-
-        self.pipeline_badge = tk.Label(
-            pp_header, text="  ว่าง  ", font=("Segoe UI", 8),
-            fg=C["text_dim"], bg=C["tag_bg"], padx=6, pady=1
-        )
-        self.pipeline_badge.pack(side="right")
-
-        # Phase 4: Progress bar สำหรับ pipeline
+        # ── ttk style ──
         style = ttk.Style()
         style.theme_use("default")
         style.configure("Pipeline.Horizontal.TProgressbar",
                         troughcolor=C["surface2"], background=C["accent"],
                         borderwidth=0, thickness=4)
-        self.pipeline_progress = ttk.Progressbar(
-            pipeline_section, style="Pipeline.Horizontal.TProgressbar",
-            orient="horizontal", mode="indeterminate", length=200
-        )
-        self.pipeline_progress.pack(fill="x", pady=(0, 4))
 
-        # Pipeline flow diagram - Row 1: cutout pipeline
-        flow_frame = tk.Frame(pipeline_section, bg=C["surface"])
-        flow_frame.pack(fill="x", pady=(0, 4))
-
-        self._make_pipeline_step(flow_frame, "original/", "ต้นฉบับ", C["text_dim"], 0)
-        tk.Label(flow_frame, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
-                 bg=C["surface"]).grid(row=0, column=1, padx=6)
-        self._make_pipeline_step(flow_frame, "cutout/", "ลบพื้นหลัง", C["orange"], 2)
-        tk.Label(flow_frame, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
-                 bg=C["surface"]).grid(row=0, column=3, padx=6)
-        self._make_pipeline_step(flow_frame, "watermarked/", "ลบพื้นหลัง + ลายน้ำ", C["purple"], 4)
-
-        # Pipeline flow diagram - Row 2: watermark-only pipeline
-        flow_frame2 = tk.Frame(pipeline_section, bg=C["surface"])
-        flow_frame2.pack(fill="x", pady=(4, 10))
-
-        self._make_pipeline_step(flow_frame2, "original/", "ต้นฉบับ", C["text_dim"], 0)
-        tk.Label(flow_frame2, text="\u2192", font=("Segoe UI", 14), fg=C["text_muted"],
-                 bg=C["surface"]).grid(row=0, column=1, padx=6)
-        self._make_pipeline_step(flow_frame2, "watermarked_original/", "ลายน้ำอย่างเดียว", C["green"], 2)
-
-        # Pipeline settings row
-        settings_row = tk.Frame(pipeline_section, bg=C["surface"])
-        settings_row.pack(fill="x")
-
-        # Cutout toggle
-        self.cutout_var = tk.BooleanVar(value=self.config.get("enable_cutout", True))
-        tk.Checkbutton(settings_row, text="ลบพื้นหลัง",
-                       variable=self.cutout_var, font=("Segoe UI", 10),
-                       fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
-                       activebackground=C["surface"], activeforeground=C["text"],
-                       command=self._on_toggle_cutout
-                       ).pack(side="left", padx=(0, 20))
-
-        # Watermark toggle (on cutout)
-        self.wm_var = tk.BooleanVar(value=self.config.get("enable_watermark", True))
-        tk.Checkbutton(settings_row, text="ลายน้ำ + ลบพื้นหลัง",
-                       variable=self.wm_var, font=("Segoe UI", 10),
-                       fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
-                       activebackground=C["surface"], activeforeground=C["text"],
-                       command=self._on_toggle_watermark
-                       ).pack(side="left", padx=(0, 20))
-
-        # Watermark on original (no BG removal)
-        self.wm_orig_var = tk.BooleanVar(value=self.config.get("enable_wm_original", True))
-        tk.Checkbutton(settings_row, text="ลายน้ำอย่างเดียว",
-                       variable=self.wm_orig_var, font=("Segoe UI", 10),
-                       fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
-                       activebackground=C["surface"], activeforeground=C["text"],
-                       command=self._on_toggle_wm_original
-                       ).pack(side="left", padx=(0, 20))
-
-        # rembg status
-        if HAS_REMBG:
-            tk.Label(settings_row, text="\u2713 rembg", font=("Consolas", 9),
-                     fg=C["green"], bg=C["surface"]).pack(side="right")
-        else:
-            tk.Label(settings_row, text="\u2717 ยังไม่ได้ติดตั้ง rembg", font=("Consolas", 9),
-                     fg=C["red"], bg=C["surface"]).pack(side="right")
-
-        # Watermark file row
-        wm_row = tk.Frame(pipeline_section, bg=C["surface"])
-        wm_row.pack(fill="x", pady=(8, 0))
-
-        tk.Label(wm_row, text="ลายน้ำ", font=("Segoe UI", 10),
-                 fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 8))
-
+        # ── Initialize config-bound vars (needed by settings dialog) ──
+        self.watch_folder_var = tk.StringVar(value=self.config.get("watch_folder", ""))
+        self.output_folder_var = tk.StringVar(value=self.config.get("output_folder", ""))
         self.wm_path_var = tk.StringVar(value=self.config.get("watermark_path", ""))
-        tk.Entry(wm_row, textvariable=self.wm_path_var, font=("Segoe UI", 10),
-                 bg=C["surface2"], fg=C["text"], relief="flat",
-                 insertbackground=C["text"], highlightthickness=0
-                 ).pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=3)
-        self._make_browse_btn(wm_row, self.browse_watermark).pack(side="left")
-
-        # Watermark options row
-        wm_opt = tk.Frame(pipeline_section, bg=C["surface"])
-        wm_opt.pack(fill="x", pady=(6, 0))
-
-        tk.Label(wm_opt, text="ความโปร่งใส", font=("Segoe UI", 9),
-                 fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.opacity_var = tk.IntVar(value=self.config.get("watermark_opacity", 40))
-        opacity_scale = tk.Scale(wm_opt, from_=10, to=100, orient="horizontal",
-                                 variable=self.opacity_var, length=120,
-                                 bg=C["surface"], fg=C["text"], troughcolor=C["surface2"],
-                                 highlightthickness=0, font=("Segoe UI", 8),
-                                 command=lambda v: self._save_wm_settings())
-        opacity_scale.pack(side="left", padx=(0, 16))
-
-        tk.Label(wm_opt, text="ขนาด %", font=("Segoe UI", 9),
-                 fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.wm_scale_var = tk.IntVar(value=self.config.get("watermark_scale", 20))
-        scale_scale = tk.Scale(wm_opt, from_=5, to=50, orient="horizontal",
-                               variable=self.wm_scale_var, length=120,
-                               bg=C["surface"], fg=C["text"], troughcolor=C["surface2"],
-                               highlightthickness=0, font=("Segoe UI", 8),
-                               command=lambda v: self._save_wm_settings())
-        scale_scale.pack(side="left", padx=(0, 16))
-
-        tk.Label(wm_opt, text="ตำแหน่ง", font=("Segoe UI", 9),
-                 fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
         self.position_var = tk.StringVar(value=self.config.get("watermark_position", "bottom-right"))
-        pos_menu = ttk.Combobox(wm_opt, textvariable=self.position_var, width=12,
-                                values=["bottom-right", "bottom-left", "top-right", "top-left", "center"],
-                                state="readonly")
-        pos_menu.pack(side="left")
-        pos_menu.bind("<<ComboboxSelected>>", lambda e: self._save_wm_settings())
+        self.cutout_var = tk.BooleanVar(value=self.config.get("enable_cutout", True))
+        self.wm_var = tk.BooleanVar(value=self.config.get("enable_watermark", True))
+        self.wm_orig_var = tk.BooleanVar(value=self.config.get("enable_wm_original", True))
+        self.spin_total_var = tk.IntVar(value=self.config.get("spin360_total", 24))
+        self.video360_bg_var = tk.BooleanVar(value=self.config.get("video360_remove_bg", False))
 
-        # --- BARCODE SECTION ---
-        barcode_section = tk.Frame(main, bg=C["surface"], padx=20, pady=16,
-                                   highlightbackground=C["border"], highlightthickness=1)
-        barcode_section.pack(fill="x", pady=(0, 8))
+        # ================================================================
+        # ROOT LAYOUT:  Header | (Left Panel | Main Area) | Status Bar
+        # ================================================================
+        root = tk.Frame(self, bg=C["bg"])
+        root.pack(fill="both", expand=True)
 
-        bc_top = tk.Frame(barcode_section, bg=C["surface"])
-        bc_top.pack(fill="x")
-        tk.Label(bc_top, text="สแกนบาร์โค้ด", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(side="left")
-        self.product_tag = tk.Label(bc_top, text="", font=("Segoe UI", 9),
-                                    fg=C["accent"], bg=C["tag_bg"], padx=8, pady=2)
+        # ── HEADER BAR (50px) ──────────────────────────────────────────
+        header = tk.Frame(root, bg=C["surface"], padx=SP["lg"], pady=SP["sm"],
+                          highlightbackground=C["border"], highlightthickness=1)
+        header.pack(fill="x")
 
-        bc_input_row = tk.Frame(barcode_section, bg=C["surface"])
-        bc_input_row.pack(fill="x", pady=(10, 0))
+        # Title
+        tk.Label(header, text="Product Photo Manager",
+                 font=FONT_TITLE, fg=C["text"], bg=C["surface"]
+                 ).pack(side="left")
 
-        tk.Label(bc_input_row, text="\u2581\u2583\u2585\u2587\u2585\u2583\u2581",
-                 font=("Consolas", 16), fg=C["text_dim"], bg=C["barcode_bg"],
-                 padx=10, pady=6).pack(side="left")
+        # Status indicator
+        status_frame = tk.Frame(header, bg=C["surface"])
+        status_frame.pack(side="left", padx=(SP["xl"], 0))
+        self.status_dot = tk.Label(status_frame, text="\u25cf", font=("Segoe UI", 12),
+                                   fg=C["red"], bg=C["surface"])
+        self.status_dot.pack(side="left")
+        self.status_text = tk.Label(status_frame, text=" หยุดอยู่",
+                                    font=("Segoe UI Semibold", 10),
+                                    fg=C["red"], bg=C["surface"])
+        self.status_text.pack(side="left")
+
+        # Header buttons (right side, reversed order for pack side="right")
+        create_button(header, "\u2699 ตั้งค่า", command=self._open_settings, variant="outline"
+                      ).pack(side="right", padx=(SP["xs"], 0))
+        self.video360_btn = create_button(header, "วิดีโอ \u2192 360\u00b0",
+                                          command=self._video_to_360, variant="outline")
+        self.video360_btn.pack(side="right", padx=(SP["xs"], 0))
+
+        self.watch_btn = create_button(header, "\u25b6 เริ่ม", command=self.toggle_watching,
+                                       variant="success")
+        self.watch_btn.pack(side="right", padx=(SP["xs"], 0))
+
+        # ── BODY (Left Panel + Main Area) ──────────────────────────────
+        body = tk.Frame(root, bg=C["bg"])
+        body.pack(fill="both", expand=True)
+
+        # ── LEFT PANEL (320px fixed) ───────────────────────────────────
+        left = tk.Frame(body, bg=C["bg"], width=320, padx=SP["sm"], pady=SP["sm"])
+        left.pack(side="left", fill="y")
+        left.pack_propagate(False)
+
+        # ──── Card 1: BARCODE SCAN ─────────────────────────────────────
+        bc_card, bc_content = create_card(left, title="สแกนบาร์โค้ด")
+        bc_card.pack(fill="x", pady=(0, SP["sm"]))
 
         self.barcode_entry = tk.Entry(
-            bc_input_row, font=("Consolas", 26, "bold"),
+            bc_content, font=FONT_MONO_LG,
             bg=C["barcode_bg"], fg=C["yellow"],
             insertbackground=C["yellow"], relief="flat",
             highlightthickness=2, highlightcolor=C["accent"],
-            highlightbackground=C["border"]
+            highlightbackground=C["border"],
         )
-        self.barcode_entry.pack(side="left", fill="x", expand=True, ipady=8, padx=(2, 0))
+        self.barcode_entry.pack(fill="x", ipady=SP["sm"])
         self.barcode_entry.bind("<Return>", self.on_barcode_scan)
 
-        self.product_info_frame = tk.Frame(barcode_section, bg=C["surface"])
-        self.product_info_frame.pack(fill="x", pady=(8, 0))
+        # Product info row
+        info_row = tk.Frame(bc_content, bg=C["surface"])
+        info_row.pack(fill="x", pady=(SP["sm"], 0))
+        self.product_tag = tk.Label(info_row, text="", font=FONT_SMALL,
+                                    fg=C["accent"], bg=C["tag_bg"], padx=6, pady=1)
         self.current_state_label = tk.Label(
-            self.product_info_frame, text="รอสแกนบาร์โค้ด...",
-            font=("Segoe UI", 12), fg=C["text_muted"], bg=C["surface"], anchor="w"
+            info_row, text="รอสแกนบาร์โค้ด...",
+            font=FONT_BODY, fg=C["text_muted"], bg=C["surface"], anchor="w",
         )
-        self.current_state_label.pack(side="left")
+        self.current_state_label.pack(side="left", fill="x", expand=True)
+        self.product_info_frame = info_row
 
-        # --- PREVIEW THUMBNAIL ---
-        preview_section = tk.Frame(main, bg=C["surface"], padx=20, pady=10,
-                                   highlightbackground=C["border"], highlightthickness=1)
-        preview_section.pack(fill="x", pady=(0, 8))
-
-        preview_header = tk.Frame(preview_section, bg=C["surface"])
-        preview_header.pack(fill="x", pady=(0, 6))
-        tk.Label(preview_header, text="ภาพล่าสุด", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(side="left")
-        self.preview_info_label = tk.Label(
-            preview_header, text="", font=("Segoe UI", 9),
-            fg=C["text_muted"], bg=C["surface"]
-        )
-        self.preview_info_label.pack(side="right")
-
-        self.preview_canvas = tk.Label(
-            preview_section, bg=C["surface2"], width=80, height=5,
-            relief="flat", anchor="center"
-        )
-        self.preview_canvas.pack(fill="x", ipady=40)
-        self._preview_photo_ref = None  # prevent GC
-
-        # --- ANGLE SELECTION ---
-        angle_section = tk.Frame(main, bg=C["surface"], padx=20, pady=16,
-                                 highlightbackground=C["border"], highlightthickness=1)
-        angle_section.pack(fill="x", pady=(0, 8))
-
-        angle_header = tk.Frame(angle_section, bg=C["surface"])
-        angle_header.pack(fill="x", pady=(0, 10))
-        tk.Label(angle_header, text="มุมถ่ายภาพ", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(side="left")
-        tk.Label(angle_header, text="F1 - F8", font=("Consolas", 9),
-                 fg=C["text_muted"], bg=C["tag_bg"], padx=6, pady=1).pack(side="right")
-
-        angles_grid = tk.Frame(angle_section, bg=C["surface"])
-        angles_grid.pack(fill="x")
+        # ──── Card 2: ANGLE SELECTION ──────────────────────────────────
+        angle_card, angle_content = create_card(left, title="มุมถ่ายภาพ  (F1-F8)")
+        angle_card.pack(fill="x", pady=(0, SP["sm"]))
 
         self.angle_buttons = {}
         for i, angle in enumerate(self.config["angles"]):
-            btn_frame = tk.Frame(angles_grid, bg=C["btn_idle"], padx=1, pady=1,
-                                 highlightbackground=C["border"], highlightthickness=1)
-            btn_frame.grid(row=i // 4, column=i % 4, padx=3, pady=3, sticky="nsew")
+            row = tk.Frame(angle_content, bg=C["btn_idle"], padx=SP["sm"], pady=SP["xs"],
+                           highlightbackground=C["border"], highlightthickness=1,
+                           cursor="hand2")
+            row.pack(fill="x", pady=1)
 
-            btn = tk.Button(
-                btn_frame, text=f"{angle.get('label_th', angle['label'])}",
-                font=("Segoe UI", 11), bg=C["btn_idle"], fg=C["text"],
-                activebackground=C["btn_hover"], activeforeground=C["text"],
-                relief="flat", cursor="hand2", height=2,
-                command=lambda a=angle["id"]: self.select_angle(a)
+            # Key badge (left)
+            tk.Label(row, text=angle["key"], font=("Consolas", 9, "bold"),
+                     fg=C["accent"], bg=C["btn_idle"], width=3
+                     ).pack(side="left", padx=(0, SP["sm"]))
+
+            # Angle name (middle)
+            btn = tk.Label(
+                row, text=f"{angle.get('label_th', angle['label'])}  ({angle['label']})",
+                font=FONT_BODY, fg=C["text"], bg=C["btn_idle"], anchor="w",
             )
-            btn.pack(fill="both", expand=True, side="top")
+            btn.pack(side="left", fill="x", expand=True)
 
-            key_label = tk.Label(btn_frame, text=angle["key"], font=("Consolas", 8),
-                                 fg=C["text_muted"], bg=C["btn_idle"])
-            key_label.pack(side="bottom", pady=(0, 2))
-
-            count_label = tk.Label(btn_frame, text="", font=("Segoe UI", 8),
+            # Photo count (right)
+            count_label = tk.Label(row, text="", font=FONT_SMALL,
                                    fg=C["text_dim"], bg=C["btn_idle"])
-            count_label.pack(side="bottom")
+            count_label.pack(side="right")
 
-            self.angle_buttons[angle["id"]] = (btn, btn_frame, key_label, count_label)
+            # Clickable: bind all widgets in row
+            aid = angle["id"]
+            for w in (row, btn, count_label):
+                w.bind("<Button-1>", lambda e, a=aid: self.select_angle(a))
 
-        for c in range(4):
-            angles_grid.columnconfigure(c, weight=1)
+            # Store as (row_frame, row_frame, key_label_unused, count_label) for compat
+            key_lbl = row.winfo_children()[0]  # the key label
+            self.angle_buttons[aid] = (row, row, key_lbl, count_label)
 
-        # --- 360 SPIN MODE ---
-        spin_section = tk.Frame(main, bg=C["surface"], padx=20, pady=14,
-                                highlightbackground=C["border"], highlightthickness=1)
-        spin_section.pack(fill="x", pady=(0, 8))
+        # ──── 360 Mode toggle (inside angle card) ─────────────────────
+        spin_row = tk.Frame(angle_content, bg=C["surface"])
+        spin_row.pack(fill="x", pady=(SP["sm"], 0))
 
-        spin_header = tk.Frame(spin_section, bg=C["surface"])
-        spin_header.pack(fill="x", pady=(0, 8))
-        tk.Label(spin_header, text="โหมดหมุน 360\u00b0", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(side="left")
+        self.spin_toggle_btn = create_button(spin_row, "\u21bb เริ่ม 360\u00b0",
+                                              command=self.toggle_360_mode, variant="outline")
+        self.spin_toggle_btn.pack(side="left")
 
-        self.spin_mode_badge = tk.Label(
-            spin_header, text="  ปิด  ", font=("Segoe UI", 8),
-            fg=C["text_dim"], bg=C["tag_bg"], padx=6, pady=1
-        )
-        self.spin_mode_badge.pack(side="right")
+        self.spin_mode_badge = create_badge(spin_row, "ปิด")
+        self.spin_mode_badge.pack(side="left", padx=(SP["sm"], 0))
 
-        spin_controls = tk.Frame(spin_section, bg=C["surface"])
-        spin_controls.pack(fill="x")
-
-        self.spin_toggle_btn = tk.Button(
-            spin_controls, text="เริ่ม 360\u00b0",
-            font=("Segoe UI Semibold", 11), fg="#fff", bg="#e67e22",
-            activebackground="#d35400", relief="flat", cursor="hand2",
-            padx=20, pady=6, command=self.toggle_360_mode
-        )
-        self.spin_toggle_btn.pack(side="left", padx=(0, 16))
-
-        self.video360_btn = tk.Button(
-            spin_controls, text="วิดีโอ → 360°",
-            font=("Segoe UI Semibold", 11), fg="#fff", bg="#8e44ad",
-            activebackground="#7d3c98", relief="flat", cursor="hand2",
-            padx=20, pady=6, command=self._video_to_360
-        )
-        self.video360_btn.pack(side="left", padx=(0, 8))
-
-        # Remove BG checkbox for Video→360
-        self.video360_bg_var = tk.BooleanVar(value=self.config.get("video360_remove_bg", False))
-        tk.Checkbutton(
-            spin_controls, text="ตัด BG",
-            variable=self.video360_bg_var, font=("Segoe UI", 10),
-            fg=C["text"], bg=C["surface"], selectcolor=C["surface2"],
-            activebackground=C["surface"], activeforeground=C["text"],
-            command=self._on_toggle_video360_bg
-        ).pack(side="left", padx=(0, 16))
-
-        tk.Label(spin_controls, text="จำนวนช็อต:", font=("Segoe UI", 10),
-                 fg=C["text_muted"], bg=C["surface"]).pack(side="left", padx=(0, 4))
-        self.spin_total_var = tk.IntVar(value=self.config.get("spin360_total", 24))
-        spin_total_menu = ttk.Combobox(spin_controls, textvariable=self.spin_total_var,
-                                       width=4, values=[12, 24, 36, 72], state="readonly")
-        spin_total_menu.pack(side="left", padx=(0, 16))
-        spin_total_menu.bind("<<ComboboxSelected>>", lambda e: self._save_spin_settings())
-
-        # Progress display
         self.spin_progress_label = tk.Label(
-            spin_controls, text="",
-            font=("Consolas", 12, "bold"), fg=C["text_muted"], bg=C["surface"]
+            spin_row, text="", font=("Consolas", 10, "bold"),
+            fg=C["text_muted"], bg=C["surface"],
         )
-        self.spin_progress_label.pack(side="left", padx=(8, 0))
+        self.spin_progress_label.pack(side="right")
 
-        # Progress bar
-        self.spin_progress_frame = tk.Frame(spin_section, bg=C["surface"])
-        self.spin_progress_frame.pack(fill="x", pady=(8, 0))
-
-        self.spin_bar_bg = tk.Frame(self.spin_progress_frame, bg=C["surface2"], height=8)
+        # 360 progress bar
+        self.spin_progress_frame = tk.Frame(angle_content, bg=C["surface"])
+        self.spin_progress_frame.pack(fill="x", pady=(SP["xs"], 0))
+        self.spin_bar_bg = tk.Frame(self.spin_progress_frame, bg=C["surface2"], height=6)
         self.spin_bar_bg.pack(fill="x")
-        self.spin_bar_fg = tk.Frame(self.spin_bar_bg, bg=C["text_muted"], height=8, width=0)
+        self.spin_bar_fg = tk.Frame(self.spin_bar_bg, bg=C["orange"], height=6, width=0)
         self.spin_bar_fg.place(x=0, y=0, relheight=1.0, relwidth=0.0)
 
-        # --- ACTIVITY LOG ---
-        log_section = tk.Frame(main, bg=C["surface"], padx=16, pady=12,
-                               highlightbackground=C["border"], highlightthickness=1)
-        log_section.pack(fill="both", expand=True)
+        # ──── Card 3: SESSION INFO ─────────────────────────────────────
+        session_card, session_content = create_card(left, title="เซสชัน")
+        session_card.pack(fill="x", pady=(0, SP["sm"]))
 
-        log_header = tk.Frame(log_section, bg=C["surface"])
-        log_header.pack(fill="x", pady=(0, 8))
-        tk.Label(log_header, text="บันทึกกิจกรรม", font=("Segoe UI Semibold", 9),
-                 fg=C["text_dim"], bg=C["surface"]).pack(side="left")
+        session_top = tk.Frame(session_content, bg=C["surface"])
+        session_top.pack(fill="x")
+
         self.photo_count_label = tk.Label(
-            log_header, text="0 รูป", font=("Segoe UI", 9),
-            fg=C["green"], bg=C["green_dim"], padx=8, pady=2
+            session_top, text="0 รูป", font=("Segoe UI Semibold", 14),
+            fg=C["green"], bg=C["surface"],
         )
-        self.photo_count_label.pack(side="right")
+        self.photo_count_label.pack(side="left")
 
-        log_container = tk.Frame(log_section, bg=C["log_bg"])
-        log_container.pack(fill="both", expand=True)
+        self.session_badge = create_badge(session_top, "วันนี้")
+        self.session_badge.pack(side="right")
+
+        session_btns = tk.Frame(session_content, bg=C["surface"])
+        session_btns.pack(fill="x", pady=(SP["sm"], 0))
+
+        create_button(session_btns, "เลิกทำ (Ctrl+Z)", command=self.undo_last_photo,
+                      variant="outline").pack(side="left", padx=(0, SP["xs"]))
+        create_button(session_btns, "ส่งออก", command=self.export_report,
+                      variant="outline").pack(side="left", padx=(0, SP["xs"]))
+        create_button(session_btns, "นำเข้า", command=self.import_photos,
+                      variant="outline").pack(side="left")
+
+        # ──── Card 4: PIPELINE STATUS ──────────────────────────────────
+        pp_card, pp_content = create_card(left, title="สถานะประมวลผล")
+        pp_card.pack(fill="x")
+
+        pp_row = tk.Frame(pp_content, bg=C["surface"])
+        pp_row.pack(fill="x")
+
+        self.pipeline_badge = create_badge(pp_row, "ว่าง")
+        self.pipeline_badge.pack(side="left")
+
+        if HAS_REMBG:
+            tk.Label(pp_row, text="\u2713 rembg", font=("Consolas", 8),
+                     fg=C["green"], bg=C["surface"]).pack(side="right")
+        else:
+            tk.Label(pp_row, text="\u2717 rembg", font=("Consolas", 8),
+                     fg=C["red"], bg=C["surface"]).pack(side="right")
+
+        self.pipeline_progress = ttk.Progressbar(
+            pp_content, style="Pipeline.Horizontal.TProgressbar",
+            orient="horizontal", mode="indeterminate", length=200,
+        )
+        self.pipeline_progress.pack(fill="x", pady=(SP["xs"], 0))
+
+        # ── MAIN AREA (fills remaining space) ──────────────────────────
+        main = tk.Frame(body, bg=C["bg"], padx=SP["sm"], pady=SP["sm"])
+        main.pack(side="left", fill="both", expand=True)
+
+        # ──── LARGE PREVIEW IMAGE ──────────────────────────────────────
+        preview_card, preview_content = create_card(main, title="ภาพล่าสุด")
+        preview_card.pack(fill="both", expand=True, pady=(0, SP["sm"]))
+
+        self.preview_info_label = tk.Label(
+            preview_content, text="ยังไม่มีภาพ — สแกนบาร์โค้ดแล้วถ่ายรูป",
+            font=FONT_SMALL, fg=C["text_muted"], bg=C["surface"],
+        )
+        self.preview_info_label.pack(anchor="ne")
+
+        self.preview_canvas = tk.Label(
+            preview_content, bg=C["surface2"], relief="flat", anchor="center",
+            text="ภาพตัวอย่างจะแสดงที่นี่", font=FONT_BODY, fg=C["text_muted"],
+        )
+        self.preview_canvas.pack(fill="both", expand=True, pady=(SP["xs"], 0))
+        self._preview_photo_ref = None
+
+        # ──── COMPACT ACTIVITY LOG ─────────────────────────────────────
+        log_card, log_content = create_card(main, title="บันทึกกิจกรรม")
+        log_card.pack(fill="x")
+
+        log_container = tk.Frame(log_content, bg=C["log_bg"], height=150)
+        log_container.pack(fill="x")
+        log_container.pack_propagate(False)
 
         self.log_text = tk.Text(
             log_container, bg=C["log_bg"], fg=C["text_dim"],
-            font=("Consolas", 9), relief="flat", state="disabled",
+            font=FONT_MONO, relief="flat", state="disabled",
             selectbackground=C["accent"], selectforeground="#fff",
-            padx=10, pady=6, spacing1=2, highlightthickness=0, borderwidth=0
+            padx=10, pady=6, spacing1=2, highlightthickness=0, borderwidth=0,
+            wrap="word",
         )
-        scrollbar = tk.Scrollbar(log_container, command=self.log_text.yview,
-                                 bg=C["surface2"], troughcolor=C["log_bg"],
-                                 highlightthickness=0, borderwidth=0)
-        scrollbar.pack(side="right", fill="y")
-        self.log_text.configure(yscrollcommand=scrollbar.set)
+        log_scrollbar = tk.Scrollbar(log_container, command=self.log_text.yview,
+                                     bg=C["surface2"], troughcolor=C["log_bg"],
+                                     highlightthickness=0, borderwidth=0)
+        log_scrollbar.pack(side="right", fill="y")
+        self.log_text.configure(yscrollcommand=log_scrollbar.set)
         self.log_text.pack(side="left", fill="both", expand=True)
 
         self.log_text.tag_configure("success", foreground=C["green"])
@@ -628,9 +415,32 @@ class ProductPhotoApp(tk.Tk):
         self.log_text.tag_configure("info", foreground=C["accent"])
         self.log_text.tag_configure("dim", foreground=C["text_muted"])
 
-    # =========================================================================
-    # UI HELPERS
-    # =========================================================================
+        # ── STATUS BAR (bottom) ────────────────────────────────────────
+        statusbar = tk.Frame(root, bg=C["surface2"], padx=SP["lg"], pady=SP["xs"])
+        statusbar.pack(fill="x", side="bottom")
+
+        self._sb_disk = tk.Label(statusbar, text="", font=FONT_SMALL,
+                                 fg=C["text_muted"], bg=C["surface2"])
+        self._sb_disk.pack(side="left")
+
+        self._sb_folder = tk.Label(statusbar, text="", font=FONT_SMALL,
+                                   fg=C["text_muted"], bg=C["surface2"])
+        self._sb_folder.pack(side="left", padx=(SP["xl"], 0))
+
+        tk.Label(statusbar, text="F1-F8: มุมถ่าย  |  Ctrl+Z: เลิกทำ  |  Enter: สแกน",
+                 font=FONT_SMALL, fg=C["text_muted"], bg=C["surface2"]
+                 ).pack(side="right")
+
+        # Update status bar with current config
+        self._update_statusbar()
+
+    def _update_statusbar(self):
+        """Refresh status bar info from config."""
+        watch = self.config.get("watch_folder", "")
+        self._sb_folder.configure(
+            text=f"\U0001f4c2 {os.path.basename(watch) or 'ยังไม่ได้ตั้งค่า'}"
+        )
+
     def _make_browse_btn(self, parent, command):
         return tk.Button(parent, text="...", font=("Segoe UI", 9),
                          bg=C["surface2"], fg=C["text_dim"],
@@ -1070,9 +880,13 @@ class ProductPhotoApp(tk.Tk):
         self.spin_bar_fg.place(x=0, y=0, relheight=1.0, relwidth=0.0)
 
         # Dim angle buttons
-        for aid, (btn, frame, key_lbl, cnt_lbl) in self.angle_buttons.items():
-            btn.configure(state="disabled", bg=C["surface2"])
-            frame.configure(bg=C["surface2"])
+        for aid, (row, _, key_lbl, cnt_lbl) in self.angle_buttons.items():
+            row.configure(bg=C["surface2"])
+            for child in row.winfo_children():
+                try:
+                    child.configure(bg=C["surface2"], fg=C["text_muted"])
+                except tk.TclError:
+                    child.configure(bg=C["surface2"])
 
         self.current_state_label.configure(
             text=f"{self.current_barcode}  \u2014  โหมด 360\u00b0  \u2014  0/{total}",
@@ -1087,13 +901,17 @@ class ProductPhotoApp(tk.Tk):
         count = self.spin360_counter
 
         # Update UI
-        self.spin_toggle_btn.configure(text="เริ่ม 360\u00b0", bg="#e67e22")
+        self.spin_toggle_btn.configure(text="\u21bb เริ่ม 360\u00b0", bg=C["surface2"])
         self.spin_mode_badge.configure(text="  ปิด  ", fg=C["text_dim"])
 
         # Re-enable angle buttons
-        for aid, (btn, frame, key_lbl, cnt_lbl) in self.angle_buttons.items():
-            btn.configure(state="normal", bg=C["btn_idle"])
-            frame.configure(bg=C["btn_idle"])
+        for aid, (row, _, key_lbl, cnt_lbl) in self.angle_buttons.items():
+            row.configure(bg=C["btn_idle"], highlightbackground=C["border"])
+            for child in row.winfo_children():
+                try:
+                    child.configure(bg=C["btn_idle"], fg=C["text"])
+                except tk.TclError:
+                    child.configure(bg=C["btn_idle"])
 
         self.current_angle = ""
 
@@ -1636,16 +1454,20 @@ viewer.addEventListener('mousedown', stopAuto);
         ))
 
     def _update_preview(self, image_path):
-        """Show thumbnail of the last captured image in the preview panel."""
+        """Show thumbnail of the last captured image in the preview panel (large)."""
         try:
             img = Image.open(image_path)
-            # Fit within 400x150
-            max_w, max_h = 400, 150
-            ratio = min(max_w / img.width, max_h / img.height)
+            # Dynamic fit: use canvas actual size, fallback to 600x450
+            try:
+                max_w = max(self.preview_canvas.winfo_width() - 20, 400)
+                max_h = max(self.preview_canvas.winfo_height() - 20, 300)
+            except Exception:
+                max_w, max_h = 600, 450
+            ratio = min(max_w / img.width, max_h / img.height, 1.0)
             if ratio < 1:
                 img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
             photo = ImageTk.PhotoImage(img)
-            self.preview_canvas.configure(image=photo)
+            self.preview_canvas.configure(image=photo, text="")
             self._preview_photo_ref = photo  # prevent GC
             fname = os.path.basename(image_path)
             self.preview_info_label.configure(text=fname)
@@ -1701,11 +1523,14 @@ viewer.addEventListener('mousedown', stopAuto);
         self.current_angle = ""
         self.angle_counters = {}
 
-        for aid, (btn, frame, key_lbl, cnt_lbl) in self.angle_buttons.items():
-            btn.configure(bg=C["btn_idle"], fg=C["text"])
-            frame.configure(bg=C["btn_idle"])
-            key_lbl.configure(bg=C["btn_idle"])
-            cnt_lbl.configure(bg=C["btn_idle"], text="")
+        for aid, (row, _, key_lbl, cnt_lbl) in self.angle_buttons.items():
+            row.configure(bg=C["btn_idle"], highlightbackground=C["border"])
+            for child in row.winfo_children():
+                try:
+                    child.configure(bg=C["btn_idle"], fg=C["text"])
+                except tk.TclError:
+                    child.configure(bg=C["btn_idle"])
+            cnt_lbl.configure(text="")
 
         product = self.product_db.lookup(barcode)
         if product and product["name"]:
@@ -1751,17 +1576,16 @@ viewer.addEventListener('mousedown', stopAuto);
                 label_th = a.get("label_th", label)
                 break
 
-        for aid, (btn, frame, key_lbl, cnt_lbl) in self.angle_buttons.items():
-            if aid == angle_id:
-                btn.configure(bg=C["btn_active"], fg="#ffffff")
-                frame.configure(bg=C["btn_active"], highlightbackground=C["accent"])
-                key_lbl.configure(bg=C["btn_active"], fg="#ffffff")
-                cnt_lbl.configure(bg=C["btn_active"], fg="#ffffff")
-            else:
-                btn.configure(bg=C["btn_idle"], fg=C["text"])
-                frame.configure(bg=C["btn_idle"], highlightbackground=C["border"])
-                key_lbl.configure(bg=C["btn_idle"], fg=C["text_muted"])
-                cnt_lbl.configure(bg=C["btn_idle"], fg=C["text_dim"])
+        for aid, (row, _, key_lbl, cnt_lbl) in self.angle_buttons.items():
+            is_sel = (aid == angle_id)
+            bg = C["btn_active"] if is_sel else C["btn_idle"]
+            fg = "#ffffff" if is_sel else C["text"]
+            row.configure(bg=bg, highlightbackground=C["accent"] if is_sel else C["border"])
+            for child in row.winfo_children():
+                try:
+                    child.configure(bg=bg, fg=fg)
+                except tk.TclError:
+                    child.configure(bg=bg)
 
         count = self.angle_counters.get(angle_id, 0)
         self.current_state_label.configure(
@@ -1806,9 +1630,10 @@ viewer.addEventListener('mousedown', stopAuto);
         self.observer.start()
         self.is_watching = True
 
-        self.watch_btn.configure(text="หยุด", bg=C["red"])
+        self.watch_btn.configure(text="\u25a0 หยุด", bg=C["red"], fg="#ffffff")
         self.status_dot.configure(fg=C["green"])
-        self.status_text.configure(text="  กำลังทำงาน", fg=C["green"])
+        self.status_text.configure(text=" กำลังทำงาน", fg=C["green"])
+        self._update_statusbar()
 
         self.log(f"กำลังดูโฟลเดอร์: {watch_dir}", "success")
         self.log(f"ปลายทาง: {output_dir}", "dim")
@@ -1819,9 +1644,9 @@ viewer.addEventListener('mousedown', stopAuto);
             self.observer.join(timeout=5)
             self.observer = None
         self.is_watching = False
-        self.watch_btn.configure(text="เริ่ม", bg=C["green"])
+        self.watch_btn.configure(text="\u25b6 เริ่ม", bg=C["green"], fg="#0f1117")
         self.status_dot.configure(fg=C["red"])
-        self.status_text.configure(text="  หยุดอยู่", fg=C["red"])
+        self.status_text.configure(text=" หยุดอยู่", fg=C["red"])
         self.log("หยุดการเฝ้าดูแล้ว", "warning")
 
     # =========================================================================

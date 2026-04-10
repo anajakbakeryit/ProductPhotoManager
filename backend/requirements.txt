@@ -1,0 +1,27 @@
+# FastAPI
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.12
+
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Database
+sqlalchemy==2.0.35
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Settings
+pydantic-settings==2.5.0
+
+# Image processing (reuse from core/)
+Pillow==10.4.0
+numpy>=1.24,<2.0
+
+# Optional: background removal
+rembg==2.0.57
+onnxruntime==1.17.1
+
+# Optional: video processing
+opencv-python==4.9.0.80

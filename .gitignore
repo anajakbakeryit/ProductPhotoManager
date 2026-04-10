@@ -34,3 +34,14 @@ htmlcov/
 
 # Build output
 Output/
+
+# Web app
+.env
+node_modules/
+frontend/node_modules/
+frontend/dist/
+productphotomanager.db
+storage/
+
+# PyInstaller spec (generated)
+*.spec
