@@ -97,14 +97,12 @@ export function ShootingPage() {
   const [batchMode, setBatchMode] = useState(false);
   const detectAngle = (filename: string): string => {
     const lower = filename.toLowerCase();
-    const angleMap: Record<string, string> = {
-      front: 'front', back: 'back', left: 'left', right: 'right',
-      top: 'top', bottom: 'bottom', detail: 'detail', package: 'package',
-    };
-    for (const [key, val] of Object.entries(angleMap)) {
-      if (lower.includes(key)) return val;
+    const angleKeywords = ['front', 'back', 'left', 'right', 'top', 'bottom', 'detail', 'package'];
+    for (const kw of angleKeywords) {
+      // Word boundary match: "back_01.jpg" ✓, "background.jpg" ✗
+      if (new RegExp(`(?:^|[_\\-./\\s])${kw}(?:[_\\-./\\s]|$)`).test(lower)) return kw;
     }
-    return 'front'; // default
+    return 'front';
   };
 
   const handleBatchUpload = async (files: FileList | File[]) => {
@@ -121,26 +119,28 @@ export function ShootingPage() {
       grouped.get(angle)!.push(f);
     }
 
-    let totalUploaded = 0;
-    for (const [angle, angleFiles] of grouped) {
+    const uploadTasks = Array.from(grouped.entries()).map(([angle, angleFiles]) => {
       const fd = new FormData();
       fd.append('barcode', currentBarcode);
       fd.append('angle', angle);
       for (const f of angleFiles) fd.append('files', f);
-      try {
-        const res = await api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
-          '/api/photos/upload', fd
-        );
+      return api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
+        '/api/photos/upload', fd
+      ).then((res) => {
         for (const photo of res.uploaded) {
           incrementCounter(angle);
           setLastPreview(photo.preview_url);
           log(`✓ ${photo.filename} → ${angle}`, 'success');
         }
-        totalUploaded += res.total;
-      } catch {
+        return res.total;
+      }).catch(() => {
         log(`✗ อัปโหลด ${angle} ไม่สำเร็จ`, 'error');
-      }
-    }
+        return 0;
+      });
+    });
+
+    const results = await Promise.allSettled(uploadTasks);
+    const totalUploaded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
     toast.success(`Batch อัปโหลดสำเร็จ ${totalUploaded} รูป (${grouped.size} มุม)`);
     setUploading(false);
   };

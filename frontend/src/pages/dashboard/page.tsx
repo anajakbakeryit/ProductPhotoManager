@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 
 const DailyChart = lazy(() => import('./daily-chart').then((m) => ({ default: m.DailyChart })));
+type DailyItem = import('./daily-chart').DailyItem;
 
 interface Stats {
   total_products: number;
@@ -21,11 +22,6 @@ interface Stats {
   photos_today: number;
   pending_processing: number;
   active_sessions: number;
-}
-
-interface DailyItem {
-  date: string;
-  count: number;
 }
 
 export function DashboardPage() {

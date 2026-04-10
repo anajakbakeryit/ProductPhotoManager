@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/authStore';
+import { setToken } from '@/lib/api';
 import { useNavigate } from 'react-router';
 
 export function HeaderTopbar() {
@@ -18,6 +19,7 @@ export function HeaderTopbar() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    setToken(null);
     useAuthStore.setState({ user: null });
     navigate('/login');
   };

@@ -103,13 +103,9 @@ export function GalleryPage() {
                 const ids = photos.map((p) => p.id);
                 toast.info(`กำลังสร้าง ZIP (${ids.length} รูป)...`);
                 try {
-                  const res = await fetch('/api/photos/download-zip', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ photo_ids: ids, variant: 'original', size: 'OG' }),
+                  const blob = await api.postBlob('/api/photos/download-zip', {
+                    photo_ids: ids, variant: 'original', size: 'OG',
                   });
-                  if (!res.ok) throw new Error('ไม่สามารถสร้าง ZIP ได้');
-                  const blob = await res.blob();
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url; a.download = 'photos.zip'; a.click();
@@ -333,7 +329,7 @@ export function GalleryPage() {
                 {/* Original (clipped by slider) */}
                 <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
                   <img src={detail.urls['original'][size]} alt="original"
-                    className="h-full object-contain" style={{ maxHeight: '60vh', width: compareRef.current?.offsetWidth || '100%' }} />
+                    className="absolute inset-0 w-full h-full object-contain" style={{ maxHeight: '60vh' }} />
                 </div>
                 {/* Slider line */}
                 <div className="absolute top-0 bottom-0 w-0.5 bg-white/80 shadow-lg" style={{ left: `${sliderPos}%` }}>

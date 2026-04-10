@@ -47,6 +47,27 @@ async function request<T = unknown>(
   return res.json();
 }
 
+async function requestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  const res = await fetch(path, { ...options, headers });
+  if (res.status === 401) {
+    accessToken = null;
+    window.location.href = '/login';
+    throw new Error('ไม่ได้เข้าสู่ระบบ');
+  }
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail || `Error ${res.status}`);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T = unknown>(path: string) => request<T>(path),
 
@@ -67,4 +88,7 @@ export const api = {
 
   upload: <T = unknown>(path: string, formData: FormData) =>
     request<T>(path, { method: 'POST', body: formData }),
+
+  postBlob: (path: string, body?: unknown) =>
+    requestBlob(path, { method: 'POST', body: JSON.stringify(body) }),
 };
