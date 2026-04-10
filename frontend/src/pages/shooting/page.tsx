@@ -96,8 +96,7 @@ export function ShootingPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // F1-F8 should work even when typing in input
       const keyMap: Record<string, string> = {};
       angles.forEach((a) => { keyMap[a.key.toUpperCase()] = a.id; });
       if (keyMap[e.key.toUpperCase()] && currentBarcode) {
@@ -150,7 +149,14 @@ export function ShootingPage() {
 
         {/* Angle Selection */}
         <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-card to-violet-950/20 p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-3">🎯 มุมถ่ายภาพ</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">🎯 มุมถ่ายภาพ</h3>
+            {!currentBarcode && (
+              <span className="text-2xs text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md font-medium">
+                สแกนบาร์โค้ดก่อน
+              </span>
+            )}
+          </div>
           <div className="space-y-1.5">
             {angles.map((angle) => {
               const isActive = currentAngle === angle.id;
@@ -163,7 +169,7 @@ export function ShootingPage() {
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                     isActive
                       ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-lg shadow-blue-500/25 scale-[1.02]'
-                      : 'hover:bg-accent/10 text-foreground disabled:opacity-30'
+                      : 'hover:bg-accent/10 text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
                   }`}
                 >
                   <kbd className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold ${
