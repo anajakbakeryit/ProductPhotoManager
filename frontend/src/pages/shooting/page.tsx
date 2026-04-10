@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Wifi, WifiOff, ScanBarcode, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
@@ -20,11 +20,10 @@ export function ShootingPage() {
   const barcodeRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
-  // Log helper
   const log = useCallback((msg: string, type = 'info') => {
     const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setActivityLog((prev) => [...prev.slice(-50), { time, msg, type }]);
-    setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }), 50);
+    setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50);
   }, []);
 
   // WebSocket processing status
@@ -32,7 +31,6 @@ export function ShootingPage() {
     if (!lastMessage) return;
     if (lastMessage.type === 'processing_done') {
       log(`✓ ประมวลผลเสร็จ: ${lastMessage.barcode}`, 'success');
-      toast.success('ประมวลผลเสร็จ');
     } else if (lastMessage.type === 'processing_error') {
       log(`✗ ประมวลผลผิดพลาด: ${lastMessage.barcode}`, 'error');
     } else if (lastMessage.type === 'processing_start') {
@@ -45,12 +43,10 @@ export function ShootingPage() {
     const raw = barcodeInput.trim();
     if (!raw) return;
     try {
-      // Try lookup first
       let product;
       try {
         product = await api.get<{ barcode: string; name: string; category: string }>(`/api/products/${raw}`);
       } catch {
-        // Auto-create if not found
         product = await api.post<{ barcode: string; name: string; category: string }>('/api/products', { barcode: raw });
       }
       setBarcode(raw);
@@ -62,7 +58,7 @@ export function ShootingPage() {
     }
   };
 
-  // File upload handler
+  // File upload
   const handleFiles = async (files: FileList | File[]) => {
     if (!currentBarcode || !currentAngle) {
       toast.error('กรุณาสแกนบาร์โค้ดและเลือกมุมถ่ายก่อน');
@@ -72,11 +68,9 @@ export function ShootingPage() {
     const formData = new FormData();
     formData.append('barcode', currentBarcode);
     formData.append('angle', currentAngle);
-    for (const file of files) {
-      formData.append('files', file);
-    }
+    for (const file of files) formData.append('files', file);
     try {
-      const res = await api.upload<{ uploaded: { filename: string; preview_url: string; count: number }[]; total: number }>(
+      const res = await api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
         '/api/photos/upload', formData
       );
       for (const photo of res.uploaded) {
@@ -93,48 +87,56 @@ export function ShootingPage() {
     }
   };
 
-  // Drag & drop handlers
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
   };
 
-  // Keyboard shortcuts: F1-F8 for angle, Ctrl+Z for undo
+  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       const keyMap: Record<string, string> = {};
       angles.forEach((a) => { keyMap[a.key.toUpperCase()] = a.id; });
-      if (keyMap[e.key.toUpperCase()]) {
+      if (keyMap[e.key.toUpperCase()] && currentBarcode) {
         e.preventDefault();
-        if (currentBarcode) setAngle(keyMap[e.key.toUpperCase()]);
+        setAngle(keyMap[e.key.toUpperCase()]);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [angles, currentBarcode, setAngle]);
 
+  const totalPhotos = Object.values(angleCounters).reduce((a, b) => a + b, 0);
+
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-var(--header-height,60px))] gap-4 p-4 overflow-auto">
-      {/* ── LEFT PANEL (320px on desktop, full width on mobile) ── */}
+      {/* ── LEFT PANEL ── */}
       <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-3 lg:overflow-y-auto">
 
-        {/* Barcode Input */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">สแกนบาร์โค้ด</h3>
-          <input
-            ref={barcodeRef}
-            type="text"
-            value={barcodeInput}
-            onChange={(e) => setBarcodeInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleBarcodeScan()}
-            placeholder="สแกนหรือพิมพ์บาร์โค้ด..."
-            className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground text-xl font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground/50"
-            autoFocus
-          />
+        {/* Barcode */}
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ScanBarcode className="w-4.5 h-4.5 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">สแกนบาร์โค้ด</h3>
+          </div>
+          <div className="relative">
+            <input
+              ref={barcodeRef}
+              type="text"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleBarcodeScan()}
+              placeholder="สแกนหรือพิมพ์บาร์โค้ด..."
+              className="w-full px-4 py-3.5 rounded-xl border border-border bg-background text-foreground text-lg font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent focus:shadow-lg focus:shadow-primary/10 transition-all placeholder:text-muted-foreground/40"
+              autoFocus
+            />
+          </div>
           {currentBarcode && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-sm font-semibold">
+            <div className="mt-3 flex items-center gap-2">
+              <span className="px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 text-white text-sm font-bold shadow-sm">
                 {currentBarcode}
               </span>
               {productInfo?.name && (
@@ -145,9 +147,9 @@ export function ShootingPage() {
         </div>
 
         {/* Angle Selection */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3">มุมถ่ายภาพ</h3>
-          <div className="space-y-1">
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">มุมถ่ายภาพ</h3>
+          <div className="space-y-1.5">
             {angles.map((angle) => {
               const isActive = currentAngle === angle.id;
               const count = angleCounters[angle.id] || 0;
@@ -156,21 +158,21 @@ export function ShootingPage() {
                   key={angle.id}
                   onClick={() => currentBarcode && setAngle(angle.id)}
                   disabled={!currentBarcode}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 ${
                     isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-accent/10 text-foreground disabled:opacity-40'
+                      ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-lg shadow-blue-500/25 scale-[1.02]'
+                      : 'hover:bg-accent/10 text-foreground disabled:opacity-30'
                   }`}
                 >
-                  <kbd className={`px-1.5 py-0.5 rounded text-xs font-mono font-bold ${
-                    isActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'
+                  <kbd className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold ${
+                    isActive ? 'bg-white/20' : 'bg-muted text-muted-foreground'
                   }`}>
                     {angle.key}
                   </kbd>
-                  <span className="flex-1 text-left">{angle.label_th} ({angle.label})</span>
+                  <span className="flex-1 text-left">{angle.label_th}</span>
                   {count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      isActive ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground'
+                    <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${
+                      isActive ? 'bg-white/20' : 'bg-primary/10 text-primary'
                     }`}>
                       {count}
                     </span>
@@ -182,65 +184,65 @@ export function ShootingPage() {
         </div>
 
         {/* Session Info */}
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold text-muted-foreground mb-2">เซสชัน</h3>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {Object.values(angleCounters).reduce((a, b) => a + b, 0)}
-            </span>
-            <span className="text-sm text-muted-foreground">รูป</span>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">เซสชัน</p>
+              <p className="text-3xl font-bold text-foreground mt-1">{totalPhotos}</p>
+              <p className="text-xs text-muted-foreground">รูปทั้งหมด</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+              <Camera className="w-7 h-7 text-white" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── MAIN AREA ─────────────────────────────────────── */}
+      {/* ── MAIN AREA ── */}
       <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-[400px]">
 
-        {/* Photo Dropzone + Preview */}
+        {/* Dropzone + Preview */}
         <div
-          className={`flex-1 rounded-xl border-2 border-dashed transition-colors flex items-center justify-center relative overflow-hidden ${
-            isDragging ? 'border-primary bg-primary/5' :
-            uploading ? 'border-yellow-500 bg-yellow-500/5' :
-            'border-border bg-card'
+          className={`flex-1 rounded-2xl border-2 border-dashed transition-all duration-300 flex items-center justify-center relative overflow-hidden ${
+            isDragging ? 'border-primary bg-primary/5 shadow-inner scale-[0.99]' :
+            uploading ? 'border-amber-400 bg-amber-400/5' :
+            'border-border bg-card hover:border-primary/50'
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={onDrop}
         >
           {lastPreviewUrl ? (
-            <img
-              src={lastPreviewUrl}
-              alt="preview"
-              className="max-w-full max-h-full object-contain"
-            />
+            <img src={lastPreviewUrl} alt="preview" className="max-w-full max-h-full object-contain p-4" />
           ) : (
             <div className="text-center p-8">
-              <Upload className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-              <p className="text-muted-foreground">
+              <div className={`mx-auto mb-6 w-20 h-20 rounded-3xl flex items-center justify-center ${
+                isDragging ? 'bg-primary/20 scale-110' : 'bg-muted'
+              } transition-all duration-300`}>
+                <Upload className={`w-10 h-10 ${isDragging ? 'text-primary animate-bounce' : 'text-muted-foreground/40'}`} />
+              </div>
+              <p className="text-foreground font-medium text-lg">
                 {!currentBarcode ? 'สแกนบาร์โค้ดก่อน' :
                  !currentAngle ? 'เลือกมุมถ่ายก่อน' :
-                 'ลากรูปมาวางที่นี่ หรือคลิกเพื่อเลือก'}
+                 'ลากรูปมาวางที่นี่'}
               </p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                JPG, PNG, CR2, CR3, ARW, NEF, TIF
+              <p className="text-sm text-muted-foreground mt-2">
+                {currentBarcode && currentAngle ? 'หรือคลิกเพื่อเลือกไฟล์ · JPG, PNG, CR2, CR3, ARW, NEF, TIF' : ''}
               </p>
             </div>
           )}
 
-          {/* Hidden file input */}
           <input
-            type="file"
-            multiple
-            accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
+            type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
             className="absolute inset-0 opacity-0 cursor-pointer"
             onChange={(e) => e.target.files && handleFiles(e.target.files)}
             disabled={!currentBarcode || !currentAngle}
           />
 
           {uploading && (
-            <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-              <div className="flex items-center gap-3">
-                <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 <span className="text-foreground font-medium">กำลังอัปโหลด...</span>
               </div>
             </div>
@@ -248,26 +250,28 @@ export function ShootingPage() {
         </div>
 
         {/* Activity Log */}
-        <div className="rounded-xl border border-border bg-card">
-          <div className="px-4 py-2 border-b border-border flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-muted-foreground">บันทึกกิจกรรม</h3>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              {isConnected ? <Wifi className="w-3 h-3 text-green-500" /> : <WifiOff className="w-3 h-3 text-red-500" />}
-              {isConnected ? 'เชื่อมต่อ' : 'ขาดการเชื่อมต่อ'}
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">บันทึกกิจกรรม</h3>
+            <span className="flex items-center gap-1.5 text-xs">
+              {isConnected
+                ? <><Wifi className="w-3 h-3 text-emerald-500" /><span className="text-emerald-500">เชื่อมต่อ</span></>
+                : <><WifiOff className="w-3 h-3 text-red-500" /><span className="text-red-500">ขาดการเชื่อมต่อ</span></>
+              }
             </span>
           </div>
-          <div ref={logRef} className="h-36 overflow-y-auto px-4 py-2 font-mono text-xs space-y-0.5">
+          <div ref={logRef} className="h-36 overflow-y-auto px-5 py-3 space-y-1.5">
             {activityLog.length === 0 ? (
-              <p className="text-muted-foreground/50 py-4 text-center">ยังไม่มีกิจกรรม</p>
+              <p className="text-muted-foreground/40 py-6 text-center text-sm">ยังไม่มีกิจกรรม</p>
             ) : (
               activityLog.map((entry, i) => (
-                <div key={i} className={`flex gap-3 ${
-                  entry.type === 'success' ? 'text-green-500' :
-                  entry.type === 'error' ? 'text-red-500' :
-                  entry.type === 'warning' ? 'text-yellow-500' :
-                  'text-muted-foreground'
+                <div key={i} className={`flex gap-3 items-start text-sm rounded-lg px-3 py-2 ${
+                  entry.type === 'success' ? 'bg-emerald-500/5 text-emerald-500' :
+                  entry.type === 'error' ? 'bg-red-500/5 text-red-500' :
+                  entry.type === 'warning' ? 'bg-amber-500/5 text-amber-500' :
+                  'bg-muted/30 text-muted-foreground'
                 }`}>
-                  <span className="text-muted-foreground/60 shrink-0">{entry.time}</span>
+                  <span className="text-[11px] text-muted-foreground shrink-0 font-mono mt-0.5">{entry.time}</span>
                   <span>{entry.msg}</span>
                 </div>
               ))

@@ -7,23 +7,18 @@ import { useLayout } from './context';
 export function SidebarHeader() {
   const { sidebarCollapse, setSidebarCollapse } = useLayout();
 
-  const handleToggleClick = () => {
-    setSidebarCollapse(!sidebarCollapse);
-  };
-
   return (
     <div className="sidebar-header hidden lg:flex items-center relative justify-between px-3 lg:px-6 shrink-0">
-      <Link to="/" className="flex items-center gap-2">
-        <Camera className="size-5 text-primary shrink-0" />
+      <Link to="/" className="flex items-center gap-2.5">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-md shadow-blue-500/25 shrink-0">
+          <Camera className="w-4.5 h-4.5 text-white" />
+        </div>
         <span className="default-logo text-sm font-bold text-foreground whitespace-nowrap">
           Photo Manager
         </span>
-        <span className="small-logo hidden">
-          <Camera className="size-5 text-primary" />
-        </span>
       </Link>
       <Button
-        onClick={handleToggleClick}
+        onClick={() => setSidebarCollapse(!sidebarCollapse)}
         size="sm"
         mode="icon"
         variant="outline"
