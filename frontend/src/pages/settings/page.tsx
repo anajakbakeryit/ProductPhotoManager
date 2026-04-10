@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Save, Upload } from 'lucide-react';
 import { UsersSection } from './users-section';
+import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
+import { Button } from '@/components/ui/button';
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -46,18 +48,21 @@ export function SettingsPage() {
   if (isLoading) return <div className="p-6 text-muted-foreground">กำลังโหลด...</div>;
 
   return (
-    <div className="p-6 max-w-3xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">ตั้งค่า</h1>
-        <button
-          onClick={() => saveMutation.mutate(config)}
-          disabled={saveMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          {saveMutation.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
-        </button>
-      </div>
+    <>
+      <Toolbar>
+        <ToolbarHeading title="ตั้งค่า" description="ตั้งค่าระบบประมวลผลภาพ" />
+        <ToolbarActions>
+          <Button
+            onClick={() => saveMutation.mutate(config)}
+            disabled={saveMutation.isPending}
+          >
+            <Save className="size-4" />
+            {saveMutation.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+          </Button>
+        </ToolbarActions>
+      </Toolbar>
+
+    <div className="container pb-7 max-w-3xl space-y-6">
 
       {/* Pipeline */}
       <section className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-50/50 to-card dark:from-card dark:to-blue-950/10 p-5 space-y-4 relative overflow-hidden">
@@ -192,5 +197,6 @@ export function SettingsPage() {
       {/* Users */}
       <UsersSection />
     </div>
+    </>
   );
 }

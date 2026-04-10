@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera } from 'lucide-react';
+import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera, FolderUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
@@ -93,6 +93,58 @@ export function ShootingPage() {
     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
   };
 
+  // Batch upload — auto-detect angle from filename
+  const [batchMode, setBatchMode] = useState(false);
+  const detectAngle = (filename: string): string => {
+    const lower = filename.toLowerCase();
+    const angleMap: Record<string, string> = {
+      front: 'front', back: 'back', left: 'left', right: 'right',
+      top: 'top', bottom: 'bottom', detail: 'detail', package: 'package',
+    };
+    for (const [key, val] of Object.entries(angleMap)) {
+      if (lower.includes(key)) return val;
+    }
+    return 'front'; // default
+  };
+
+  const handleBatchUpload = async (files: FileList | File[]) => {
+    if (!currentBarcode) {
+      toast.error('กรุณาสแกนบาร์โค้ดก่อน');
+      return;
+    }
+    setUploading(true);
+    const fileArray = Array.from(files);
+    const grouped = new Map<string, File[]>();
+    for (const f of fileArray) {
+      const angle = detectAngle(f.name);
+      if (!grouped.has(angle)) grouped.set(angle, []);
+      grouped.get(angle)!.push(f);
+    }
+
+    let totalUploaded = 0;
+    for (const [angle, angleFiles] of grouped) {
+      const fd = new FormData();
+      fd.append('barcode', currentBarcode);
+      fd.append('angle', angle);
+      for (const f of angleFiles) fd.append('files', f);
+      try {
+        const res = await api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
+          '/api/photos/upload', fd
+        );
+        for (const photo of res.uploaded) {
+          incrementCounter(angle);
+          setLastPreview(photo.preview_url);
+          log(`✓ ${photo.filename} → ${angle}`, 'success');
+        }
+        totalUploaded += res.total;
+      } catch {
+        log(`✗ อัปโหลด ${angle} ไม่สำเร็จ`, 'error');
+      }
+    }
+    toast.success(`Batch อัปโหลดสำเร็จ ${totalUploaded} รูป (${grouped.size} มุม)`);
+    setUploading(false);
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -111,7 +163,7 @@ export function ShootingPage() {
   const totalPhotos = Object.values(angleCounters).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-var(--header-height,60px))] gap-4 p-4 overflow-auto">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-var(--header-height,70px)-49px)] gap-4 p-4 overflow-auto">
       {/* ── LEFT PANEL ── */}
       <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-3 lg:overflow-y-auto">
 
@@ -205,7 +257,7 @@ export function ShootingPage() {
           </div>
         </div>
 
-        {/* Session Info */}
+        {/* Session Info + Batch Toggle */}
         <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-card to-emerald-950/20 p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -217,6 +269,17 @@ export function ShootingPage() {
               <Camera className="w-7 h-7 text-white" />
             </div>
           </div>
+          <button
+            onClick={() => setBatchMode(!batchMode)}
+            className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+              batchMode
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            <FolderUp className="size-3.5" />
+            {batchMode ? 'Batch Mode เปิดอยู่' : 'Batch Upload'}
+          </button>
         </div>
       </div>
 
@@ -232,7 +295,13 @@ export function ShootingPage() {
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
-          onDrop={onDrop}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files.length > 0) {
+              batchMode ? handleBatchUpload(e.dataTransfer.files) : handleFiles(e.dataTransfer.files);
+            }
+          }}
         >
           {lastPreviewUrl ? (
             <img src={lastPreviewUrl} alt="preview" className="max-w-full max-h-full object-contain p-4" />
@@ -245,11 +314,14 @@ export function ShootingPage() {
               </div>
               <p className="text-foreground font-medium text-lg">
                 {!currentBarcode ? 'สแกนบาร์โค้ดก่อน' :
+                 batchMode ? 'ลากรูปหลายมุมมาวางพร้อมกัน' :
                  !currentAngle ? 'เลือกมุมถ่ายก่อน' :
                  'ลากรูปมาวางที่นี่'}
               </p>
               <p className="text-sm text-muted-foreground mt-2">
-                {currentBarcode && currentAngle ? 'หรือคลิกเพื่อเลือกไฟล์ · JPG, PNG, CR2, CR3, ARW, NEF, TIF' : ''}
+                {batchMode && currentBarcode
+                  ? 'ระบบจะ detect มุมจากชื่อไฟล์ (front, back, left, right...) · JPG, PNG, RAW'
+                  : currentBarcode && currentAngle ? 'หรือคลิกเพื่อเลือกไฟล์ · JPG, PNG, CR2, CR3, ARW, NEF, TIF' : ''}
               </p>
             </div>
           )}
@@ -257,8 +329,11 @@ export function ShootingPage() {
           <input
             type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
             className="absolute inset-0 opacity-0 cursor-pointer"
-            onChange={(e) => e.target.files && handleFiles(e.target.files)}
-            disabled={!currentBarcode || !currentAngle}
+            onChange={(e) => {
+              if (!e.target.files) return;
+              batchMode ? handleBatchUpload(e.target.files) : handleFiles(e.target.files);
+            }}
+            disabled={!currentBarcode || (!currentAngle && !batchMode)}
           />
 
           {uploading && (

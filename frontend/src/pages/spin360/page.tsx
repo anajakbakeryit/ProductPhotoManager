@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Upload, RotateCw, ExternalLink, Loader2, Video } from 'lucide-react';
+import { Toolbar, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 
 export function Spin360Page() {
   const [barcode, setBarcode] = useState('');
@@ -37,11 +38,12 @@ export function Spin360Page() {
   }, [barcode, uploadMutation]);
 
   return (
-    <div className="p-5 lg:p-7 space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">360 องศา</h1>
-        <p className="text-sm text-muted-foreground mt-1">อัปโหลดเฟรม 360° หรือวิดีโอ</p>
-      </div>
+    <>
+      <Toolbar>
+        <ToolbarHeading title="360 องศา" description="อัปโหลดเฟรม 360° หรือวิดีโอ" />
+      </Toolbar>
+
+    <div className="container pb-7 space-y-5">
 
       {/* Upload */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -128,5 +130,6 @@ export function Spin360Page() {
         </div>
       )}
     </div>
+    </>
   );
 }

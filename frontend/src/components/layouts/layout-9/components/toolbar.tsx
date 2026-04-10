@@ -70,7 +70,7 @@ function ToolbarBreadcrumbs() {
   );
 }
 
-function ToolbarHeading({ title = '' }: ToolbarHeadingProps) {
+function ToolbarHeading({ title = '', description }: ToolbarHeadingProps) {
   const { pathname } = useLocation();
   const { getCurrentItem } = useMenu(pathname);
   const item = getCurrentItem(MENU_MEGA);
@@ -78,7 +78,11 @@ function ToolbarHeading({ title = '' }: ToolbarHeadingProps) {
   return (
     <div className="flex flex-col gap-1">
       <h1 className="font-medium text-lg text-mono">{title || item?.title}</h1>
-      <ToolbarBreadcrumbs />
+      {description ? (
+        <p className="text-sm text-muted-foreground">{description}</p>
+      ) : (
+        <ToolbarBreadcrumbs />
+      )}
     </div>
   );
 }

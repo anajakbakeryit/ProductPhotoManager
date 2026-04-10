@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Download, FileText, Package, Image, BarChart3 } from 'lucide-react';
+import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
+import { Button } from '@/components/ui/button';
 
 interface Summary {
   barcode: string;
@@ -25,23 +27,24 @@ export function ReportsPage() {
   ];
 
   return (
-    <div className="p-5 lg:p-7 space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">รายงาน</h1>
-          <p className="text-sm text-muted-foreground mt-1">สรุปภาพสินค้าทั้งหมด</p>
-        </div>
-        <div className="flex gap-2">
-          <a href="/api/reports/export/html" target="_blank"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 shadow-sm transition-colors">
-            <FileText className="size-4" /> HTML
-          </a>
-          <a href="/api/reports/export/csv" target="_blank"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors">
-            <Download className="size-4" /> CSV
-          </a>
-        </div>
-      </div>
+    <>
+      <Toolbar>
+        <ToolbarHeading title="รายงาน" description="สรุปภาพสินค้าทั้งหมด" />
+        <ToolbarActions>
+          <Button variant="outline" asChild>
+            <a href="/api/reports/export/csv" target="_blank">
+              <Download className="size-4" /> CSV
+            </a>
+          </Button>
+          <Button asChild>
+            <a href="/api/reports/export/html" target="_blank">
+              <FileText className="size-4" /> HTML
+            </a>
+          </Button>
+        </ToolbarActions>
+      </Toolbar>
+
+    <div className="container pb-7 space-y-5">
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
@@ -123,5 +126,6 @@ export function ReportsPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

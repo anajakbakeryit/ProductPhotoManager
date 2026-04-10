@@ -1,6 +1,6 @@
 import { Route, Routes, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Layout1 } from '@/components/layouts/layout-1';
+import { Layout9 } from '@/components/layouts/layout-9';
 import { LoginPage } from '@/pages/login/page';
 import { ShootingPage } from '@/pages/shooting/page';
 import { GalleryPage } from '@/pages/gallery/page';
@@ -59,7 +59,7 @@ export function AppRoutingSetup() {
         <Route
           element={
             <ProtectedRoute>
-              <Layout1 />
+              <Layout9 />
             </ProtectedRoute>
           }
         >

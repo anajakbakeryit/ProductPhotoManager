@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Filter } from 'lucide-react';
+import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Filter, Layers, SplitSquareHorizontal } from 'lucide-react';
+import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
+import { Button } from '@/components/ui/button';
 
 interface Photo {
   id: number;
@@ -18,12 +21,25 @@ interface Photo {
 }
 
 export function GalleryPage() {
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('search') || '');
   const [angle, setAngle] = useState('');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [variant, setVariant] = useState('original');
   const [size, setSize] = useState('M');
+  const [compareMode, setCompareMode] = useState(false);
+  const [sliderPos, setSliderPos] = useState(50);
+  const [viewer360Barcode, setViewer360Barcode] = useState<string | null>(null);
+  const compareRef = useRef<HTMLDivElement>(null);
+
+  const handleSliderDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if (!compareRef.current) return;
+    const rect = compareRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    setSliderPos((x / rect.width) * 100);
+  }, []);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -75,15 +91,18 @@ export function GalleryPage() {
   ];
 
   return (
-    <div className="p-5 lg:p-7 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">แกลเลอรี่</h1>
-          <p className="text-sm text-muted-foreground mt-1">{total} รูปทั้งหมด</p>
-        </div>
-      </div>
+    <>
+      <Toolbar>
+        <ToolbarHeading title="แกลเลอรี่" description={`${total} รูปทั้งหมด`} />
+        <ToolbarActions>
+          <Button variant="outline" size="sm">
+            <Layers className="size-4" />
+            {total} รูป
+          </Button>
+        </ToolbarActions>
+      </Toolbar>
 
+    <div className="container pb-7 space-y-5">
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 max-w-md">
@@ -173,6 +192,14 @@ export function GalleryPage() {
                       cutout
                     </span>
                   )}
+                  {photo.angle === '360' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setViewer360Barcode(photo.barcode); }}
+                      className="text-2xs px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 font-medium hover:bg-amber-500/20 transition-colors"
+                    >
+                      360°
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -203,6 +230,30 @@ export function GalleryPage() {
         </div>
       )}
 
+      {/* Inline 360 Viewer */}
+      {viewer360Barcode && (
+        <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-50/30 to-card dark:from-card dark:to-amber-950/10 overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-border/50">
+            <div className="flex items-center gap-2">
+              <div className="size-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                <Eye className="size-3.5 text-white" />
+              </div>
+              <span className="text-sm font-semibold text-foreground">360° — {viewer360Barcode}</span>
+            </div>
+            <button onClick={() => setViewer360Barcode(null)}
+              className="size-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors">
+              <X className="size-4" />
+            </button>
+          </div>
+          <iframe
+            src={`/api/spin360/${viewer360Barcode}/viewer`}
+            className="w-full bg-black"
+            style={{ height: '450px' }}
+            title="360 Viewer"
+          />
+        </div>
+      )}
+
       {/* Lightbox */}
       {selectedId && detail && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
@@ -218,31 +269,68 @@ export function GalleryPage() {
                 </p>
               </div>
               <div className="flex items-center gap-1.5">
+                {detail.urls['original']?.[size] && detail.urls['cutout']?.[size] && (
+                  <button onClick={() => { setCompareMode(!compareMode); setSliderPos(50); }}
+                    className={`size-8 rounded-lg flex items-center justify-center transition-colors ${
+                      compareMode ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+                    }`}
+                    title="เปรียบเทียบ">
+                    <SplitSquareHorizontal className="size-4" />
+                  </button>
+                )}
                 <button onClick={() => deleteMutation.mutate(detail.id)}
                   className="size-8 rounded-lg flex items-center justify-center hover:bg-destructive/10 text-destructive transition-colors">
                   <Trash2 className="size-4" />
                 </button>
-                <button onClick={() => setSelectedId(null)}
+                <button onClick={() => { setSelectedId(null); setCompareMode(false); }}
                   className="size-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors">
                   <X className="size-4" />
                 </button>
               </div>
             </div>
 
-            {/* Image */}
-            <div className="flex items-center justify-center bg-black/90 min-h-[400px] max-h-[60vh]">
-              {detail.urls[variant]?.[size] ? (
-                <img src={detail.urls[variant][size]} alt={detail.filename}
-                  className="max-w-full max-h-[60vh] object-contain" />
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                    <ImageIcon className="size-5 text-muted-foreground/60" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">ไม่พบรูปสำหรับ {variant}/{size}</p>
+            {/* Image / Comparison */}
+            {compareMode && detail.urls['original']?.[size] && detail.urls['cutout']?.[size] ? (
+              <div
+                ref={compareRef}
+                className="relative bg-black/90 min-h-[400px] max-h-[60vh] overflow-hidden cursor-col-resize select-none"
+                onMouseMove={(e) => e.buttons === 1 && handleSliderDrag(e)}
+                onTouchMove={handleSliderDrag}
+                onClick={handleSliderDrag}
+              >
+                {/* Cutout (full background) */}
+                <img src={detail.urls['cutout'][size]} alt="cutout"
+                  className="w-full h-full object-contain absolute inset-0" style={{ maxHeight: '60vh' }} />
+                {/* Original (clipped by slider) */}
+                <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
+                  <img src={detail.urls['original'][size]} alt="original"
+                    className="h-full object-contain" style={{ maxHeight: '60vh', width: compareRef.current?.offsetWidth || '100%' }} />
                 </div>
-              )}
-            </div>
+                {/* Slider line */}
+                <div className="absolute top-0 bottom-0 w-0.5 bg-white/80 shadow-lg" style={{ left: `${sliderPos}%` }}>
+                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-8 rounded-full bg-white shadow-lg flex items-center justify-center">
+                    <SplitSquareHorizontal className="size-4 text-zinc-700" />
+                  </div>
+                </div>
+                {/* Labels */}
+                <span className="absolute top-3 left-3 px-2 py-0.5 rounded bg-blue-500/80 text-white text-xs font-medium">ต้นฉบับ</span>
+                <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-emerald-500/80 text-white text-xs font-medium">ลบพื้นหลัง</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center bg-black/90 min-h-[400px] max-h-[60vh]">
+                {detail.urls[variant]?.[size] ? (
+                  <img src={detail.urls[variant][size]} alt={detail.filename}
+                    className="max-w-full max-h-[60vh] object-contain" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                      <ImageIcon className="size-5 text-muted-foreground/60" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">ไม่พบรูปสำหรับ {variant}/{size}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Controls */}
             <div className="p-5 border-t border-border/50 flex flex-wrap gap-5">
@@ -281,16 +369,19 @@ export function GalleryPage() {
                   ))}
                 </div>
               </div>
-              {detail.urls[variant]?.[size] && (
-                <a href={detail.urls[variant][size]} download
-                  className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
-                  <Download className="size-4" /> ดาวน์โหลด
-                </a>
-              )}
+              <div className="flex items-center gap-2 ml-auto">
+                {detail.urls[variant]?.[size] && (
+                  <a href={detail.urls[variant][size]} download
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                    <Download className="size-4" /> ดาวน์โหลด
+                  </a>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
     </div>
+    </>
   );
 }

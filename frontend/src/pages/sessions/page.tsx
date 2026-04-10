@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Clock, Camera, Hash, Calendar } from 'lucide-react';
+import { Toolbar, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 
 interface SessionItem {
   id: number;
@@ -19,11 +20,12 @@ export function SessionsPage() {
   const sessions = data?.data || [];
 
   return (
-    <div className="p-5 lg:p-7 space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-foreground">ประวัติเซสชัน</h1>
-        <p className="text-sm text-muted-foreground mt-1">ดูประวัติการทำงานย้อนหลัง</p>
-      </div>
+    <>
+      <Toolbar>
+        <ToolbarHeading title="ประวัติเซสชัน" description="ดูประวัติการทำงานย้อนหลัง" />
+      </Toolbar>
+
+    <div className="container pb-7 space-y-5">
 
       {isLoading ? (
         <div className="space-y-3">
@@ -97,5 +99,6 @@ export function SessionsPage() {
         </div>
       )}
     </div>
+    </>
   );
 }

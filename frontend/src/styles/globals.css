@@ -9,60 +9,79 @@
 /** Dark Mode Variant **/
 @custom-variant dark (&:is(.dark *));
 
-/** Colors - https://tailwindcss.com/docs/colors **/
+/** Colors — Metronic Demo 9 palette **/
 :root {
-  --background: var(--color-white);
-  --foreground: var(--color-zinc-950);
-  --card: var(--color-white);
-  --card-foreground: var(--color-zinc-950);
-  --popover: var(--color-white);
-  --popover-foreground: var(--color-zinc-950);
-  --primary: var(--color-zinc-900);
-  --primary-foreground: var(--color-white);
-  --secondary: var(--color-zinc-100);
-  --secondary-foreground: var(--color-zinc-900);
-  --muted: var(--color-zinc-100);
-  --muted-foreground: var(--color-zinc-500);
-  --accent: var(--color-zinc-100);
-  --accent-foreground: var(--color-zinc-900);
-  --destructive: var(--color-red-600);
-  --destructive-foreground: var(--color-white);
-  --chart-1: var(--color-blue-500);
-  --chart-2: var(--color-green-500);
-  --chart-3: var(--color-yellow-500);
-  --chart-4: var(--color-red-500);
-  --chart-5: var(--color-purple-500);
-  --border: oklch(94% 0.004 286.32); /* between --color-zinc-100 and --color-zinc-200 */
-  --input: var(--color-zinc-200);
-  --ring: var(--color-zinc-400);
+  /* Metronic Demo 9 blue primary */
+  --background: #fefefe;
+  --foreground: #1b1f26;
+  --card: #ffffff;
+  --card-foreground: #1b1f26;
+  --popover: #ffffff;
+  --popover-foreground: #1b1f26;
+  --primary: #1b84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1f4;
+  --secondary-foreground: #3f4254;
+  --muted: #f1f1f4;
+  --muted-foreground: #78829d;
+  --accent: #f1f1f4;
+  --accent-foreground: #1b1f26;
+  --destructive: #f8285a;
+  --destructive-foreground: #ffffff;
+  --chart-1: #1b84ff;
+  --chart-2: #17c653;
+  --chart-3: #f6b100;
+  --chart-4: #f8285a;
+  --chart-5: #7239ea;
+  --border: #e8e8ec;
+  --input: #dbdfe9;
+  --ring: #1b84ff;
   --radius: 0.5rem;
+
+  /* Metronic semantic colors */
+  --mono: #071437;
+  --success: #17c653;
+  --success-foreground: #ffffff;
+  --warning: #f6b100;
+  --warning-foreground: #ffffff;
+  --info: #7239ea;
+  --info-foreground: #ffffff;
 }
 
 .dark {
-  --background: var(--color-zinc-950);
-  --foreground: var(--color-zinc-50);
-  --card: var(--color-zinc-950);
-  --card-foreground: var(--color-zinc-50);
-  --popover: var(--color-zinc-950);
-  --popover-foreground: var(--color-zinc-50);
-  --primary: var(--color-zinc-300);
-  --primary-foreground: var(--color-zinc-950);
-  --secondary: var(--color-zinc-800);
-  --secondary-foreground: var(--color-zinc-50);
-  --muted: var(--color-zinc-900);
-  --muted-foreground: var(--color-zinc-500);
-  --accent: var(--color-zinc-900);
-  --accent-foreground: var(--color-zinc-50);
-  --destructive: var(--color-red-600);
-  --destructive-foreground: var(--color-white);
-  --chart-1: var(--color-blue-500);
-  --chart-2: var(--color-green-500);
-  --chart-3: var(--color-yellow-500);
-  --chart-4: var(--color-red-500);
-  --chart-5: var(--color-purple-500);
-  --border: var(--color-zinc-800);
-  --input: var(--color-zinc-800);
-  --ring: var(--color-zinc-600);
+  --background: #111827;
+  --foreground: #d1d5db;
+  --card: #1b2132;
+  --card-foreground: #d1d5db;
+  --popover: #1b2132;
+  --popover-foreground: #d1d5db;
+  --primary: #1b84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #1f2937;
+  --secondary-foreground: #9ca3af;
+  --muted: #1f2937;
+  --muted-foreground: #6b7280;
+  --accent: #1f2937;
+  --accent-foreground: #d1d5db;
+  --destructive: #f8285a;
+  --destructive-foreground: #ffffff;
+  --chart-1: #3b82f6;
+  --chart-2: #22c55e;
+  --chart-3: #eab308;
+  --chart-4: #ef4444;
+  --chart-5: #a855f7;
+  --border: #2d3748;
+  --input: #374151;
+  --ring: #1b84ff;
+
+  /* Metronic semantic colors (dark) */
+  --mono: #f9f9f9;
+  --success: #17c653;
+  --success-foreground: #ffffff;
+  --warning: #f6b100;
+  --warning-foreground: #ffffff;
+  --info: #7239ea;
+  --info-foreground: #ffffff;
 }
 
 /** Font: Inter + Noto Sans Thai (same as BESTCHOICE) **/
@@ -100,6 +119,15 @@ body {
   --color-secondary-foreground: var(--secondary-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
+  /** Metronic Semantic Colors **/
+  --color-mono: var(--mono);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 
   /** Base Styles **/
   --color-border: var(--border);

@@ -6,7 +6,7 @@ export function Layout9() {
   return (
     <>
       <Helmet>
-        <title>Metronic - Layout 9</title>
+        <title>Photo Manager</title>
       </Helmet>
 
       <LayoutProvider>
