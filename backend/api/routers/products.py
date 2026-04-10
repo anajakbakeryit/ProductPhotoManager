@@ -55,6 +55,16 @@ async def list_products(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        return await _list_products_impl(db, search, category, page, limit)
+    except Exception as e:
+        logger.error(f"list_products error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _list_products_impl(db, search, category, page, limit):
     query = select(Product)
     if search:
         query = query.where(
@@ -68,7 +78,7 @@ async def list_products(
     total = (await db.execute(count_q)).scalar() or 0
 
     # Paginate
-    query = query.order_by(Product.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    query = query.order_by(Product.id.desc()).offset((page - 1) * limit).limit(limit)
     result = await db.execute(query)
     products = result.scalars().all()
 

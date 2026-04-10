@@ -68,14 +68,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate Limiting
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
-app.state.limiter = limiter
-app.add_middleware(SlowAPIMiddleware)
+# Rate Limiting (disabled in dev mode to avoid issues without Redis)
+if not settings.dev_mode:
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
 
-@app.exception_handler(RateLimitExceeded)
-async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(status_code=429, content={"detail": "คำขอมากเกินไป กรุณารอสักครู่"})
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+        return JSONResponse(status_code=429, content={"detail": "คำขอมากเกินไป กรุณารอสักครู่"})
 
 # CORS
 app.add_middleware(
