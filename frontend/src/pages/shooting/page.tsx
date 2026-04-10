@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Wifi, WifiOff, ScanBarcode, Loader2 } from 'lucide-react';
+import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
