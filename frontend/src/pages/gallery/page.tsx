@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive } from 'lucide-react';
+import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive, CheckSquare, Square } from 'lucide-react';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
 
@@ -31,7 +31,46 @@ export function GalleryPage() {
   const [compareMode, setCompareMode] = useState(false);
   const [sliderPos, setSliderPos] = useState(50);
   const [viewer360Barcode, setViewer360Barcode] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const compareRef = useRef<HTMLDivElement>(null);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const bulkDelete = async () => {
+    if (!selectedIds.size) return;
+    const count = selectedIds.size;
+    for (const id of selectedIds) {
+      try { await api.delete(`/api/photos/${id}`); } catch { /* skip */ }
+    }
+    toast.success(`ลบ ${count} รูปแล้ว`);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    queryClient.invalidateQueries({ queryKey: ['gallery'] });
+  };
+
+  const bulkDownload = async () => {
+    if (!selectedIds.size) return;
+    toast.info(`กำลังสร้าง ZIP (${selectedIds.size} รูป)...`);
+    try {
+      const blob = await api.postBlob('/api/photos/download-zip', {
+        photo_ids: Array.from(selectedIds), variant: 'original', size: 'OG',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'photos.zip'; a.click();
+      URL.revokeObjectURL(url);
+      toast.success('ดาวน์โหลด ZIP สำเร็จ');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'ดาวน์โหลดไม่สำเร็จ');
+    }
+  };
 
   const handleSliderDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!compareRef.current) return;
@@ -120,10 +159,16 @@ export function GalleryPage() {
               ZIP
             </Button>
           )}
-          <Button variant="outline" size="sm" disabled>
-            <Layers className="size-4" />
-            {total} รูป
-          </Button>
+          {photos.length > 0 && (
+            <Button
+              variant={selectMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
+            >
+              <CheckSquare className="size-4" />
+              {selectMode ? `เลือกอยู่ (${selectedIds.size})` : 'เลือก'}
+            </Button>
+          )}
         </ToolbarActions>
       </Toolbar>
 
@@ -185,8 +230,15 @@ export function GalleryPage() {
           {photos.map((photo) => (
             <div
               key={photo.id}
-              onClick={() => { setSelectedId(photo.id); setVariant('original'); setSize('M'); }}
-              className="group rounded-xl border border-border bg-card overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+              onClick={() => {
+                if (selectMode) { toggleSelect(photo.id); }
+                else { setSelectedId(photo.id); setVariant('original'); setSize('M'); }
+              }}
+              className={`group rounded-xl border overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
+                selectMode && selectedIds.has(photo.id)
+                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                  : 'border-border bg-card'
+              }`}
             >
               <div className="aspect-square bg-muted relative overflow-hidden">
                 <img
@@ -195,10 +247,20 @@ export function GalleryPage() {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   loading="lazy"
                 />
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                  <Eye className="size-6 text-white" />
-                </div>
+                {/* Select checkbox */}
+                {selectMode ? (
+                  <div className="absolute top-2 left-2 z-10">
+                    {selectedIds.has(photo.id) ? (
+                      <CheckSquare className="size-5 text-primary drop-shadow" />
+                    ) : (
+                      <Square className="size-5 text-white/70 drop-shadow" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <Eye className="size-6 text-white" />
+                  </div>
+                )}
                 {/* Status dot */}
                 <div className={`absolute top-2 right-2 size-2.5 rounded-full ring-2 ring-card ${
                   photo.status === 'done' ? 'bg-emerald-500' :
@@ -407,6 +469,28 @@ export function GalleryPage() {
         </div>
       )}
     </div>
+
+      {/* Floating bulk action bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl bg-card border border-border shadow-2xl">
+          <span className="text-sm font-medium text-foreground">เลือก {selectedIds.size} รูป</span>
+          <div className="w-px h-5 bg-border" />
+          <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set(photos.map((p) => p.id)))}>
+            เลือกทั้งหมด
+          </Button>
+          <Button size="sm" variant="outline" onClick={bulkDownload}>
+            <FileArchive className="size-4" />
+            ZIP
+          </Button>
+          <Button size="sm" variant="destructive" onClick={bulkDelete}>
+            <Trash2 className="size-4" />
+            ลบ
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
     </>
   );
 }

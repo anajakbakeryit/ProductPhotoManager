@@ -33,6 +33,7 @@ interface ShootingState {
   resetCounters: () => void;
   toggle360Mode: () => void;
   setLastPreview: (url: string) => void;
+  reorderAngles: (fromIndex: number, toIndex: number) => void;
 }
 
 export const useShootingStore = create<ShootingState>((set) => ({
@@ -67,4 +68,15 @@ export const useShootingStore = create<ShootingState>((set) => ({
     })),
 
   setLastPreview: (url) => set({ lastPreviewUrl: url }),
+
+  reorderAngles: (fromIndex, toIndex) =>
+    set((state) => {
+      const newAngles = [...state.angles];
+      const [moved] = newAngles.splice(fromIndex, 1);
+      newAngles.splice(toIndex, 0, moved);
+      // Reassign F-keys by position
+      return {
+        angles: newAngles.map((a, i) => ({ ...a, key: `F${i + 1}` })),
+      };
+    }),
 }));

@@ -1,15 +1,78 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera, FolderUp } from 'lucide-react';
+import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera, FolderUp, GripVertical } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const ANGLE_COLORS = [
+  { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500', idle: 'hover:bg-blue-50 dark:hover:bg-blue-950/30' },
+  { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500', idle: 'hover:bg-violet-50 dark:hover:bg-violet-950/30' },
+  { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500', idle: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30' },
+  { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500', idle: 'hover:bg-orange-50 dark:hover:bg-orange-950/30' },
+  { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500', idle: 'hover:bg-pink-50 dark:hover:bg-pink-950/30' },
+  { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500', idle: 'hover:bg-sky-50 dark:hover:bg-sky-950/30' },
+  { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500', idle: 'hover:bg-lime-50 dark:hover:bg-lime-950/30' },
+  { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500', idle: 'hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30' },
+];
+
+function SortableAngleButton({ angle, idx, isActive, count, disabled, onClick }: {
+  angle: { id: string; label_th: string; key: string };
+  idx: number; isActive: boolean; count: number; disabled: boolean; onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: angle.id });
+  const c = ANGLE_COLORS[idx % ANGLE_COLORS.length];
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined };
+
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50' : ''}>
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 relative overflow-hidden ${
+          isActive
+            ? `bg-gradient-to-r ${c.gradient} text-white shadow-lg ${c.shadow} scale-[1.02]`
+            : `${c.idle} text-foreground disabled:opacity-40 disabled:cursor-not-allowed`
+        }`}
+      >
+        <div className={`absolute left-0 top-1 bottom-1 w-1 rounded-full ${isActive ? 'bg-white/40' : c.dot} ${disabled ? 'opacity-30' : 'opacity-70'}`} />
+        <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing ml-1 touch-none">
+          <GripVertical className={`size-3.5 ${isActive ? 'text-white/50' : 'text-muted-foreground/40'}`} />
+        </span>
+        <kbd className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold ${isActive ? 'bg-white/20' : c.badge}`}>
+          {angle.key}
+        </kbd>
+        <span className="flex-1 text-left font-medium">{angle.label_th}</span>
+        {count > 0 && (
+          <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${isActive ? 'bg-white/20' : c.badge}`}>
+            {count}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
 
 export function ShootingPage() {
   const {
     currentBarcode, currentAngle, angleCounters, angles,
-    setBarcode, setAngle, incrementCounter, setLastPreview, lastPreviewUrl,
+    setBarcode, setAngle, incrementCounter, setLastPreview, lastPreviewUrl, reorderAngles,
   } = useShootingStore();
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIdx = angles.findIndex((a) => a.id === active.id);
+      const newIdx = angles.findIndex((a) => a.id === over.id);
+      if (oldIdx !== -1 && newIdx !== -1) reorderAngles(oldIdx, newIdx);
+    }
+  };
 
   const { lastMessage, isConnected } = useProcessingStatus();
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -209,52 +272,23 @@ export function ShootingPage() {
               </span>
             )}
           </div>
-          <div className="space-y-1.5">
-            {angles.map((angle, idx) => {
-              const isActive = currentAngle === angle.id;
-              const count = angleCounters[angle.id] || 0;
-              // Each angle gets its own color!
-              const colors = [
-                { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500', idle: 'hover:bg-blue-50 dark:hover:bg-blue-950/30' },
-                { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500', idle: 'hover:bg-violet-50 dark:hover:bg-violet-950/30' },
-                { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500', idle: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30' },
-                { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500', idle: 'hover:bg-orange-50 dark:hover:bg-orange-950/30' },
-                { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500', idle: 'hover:bg-pink-50 dark:hover:bg-pink-950/30' },
-                { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500', idle: 'hover:bg-sky-50 dark:hover:bg-sky-950/30' },
-                { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500', idle: 'hover:bg-lime-50 dark:hover:bg-lime-950/30' },
-                { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500', idle: 'hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30' },
-              ];
-              const c = colors[idx % colors.length];
-              return (
-                <button
-                  key={angle.id}
-                  onClick={() => currentBarcode && setAngle(angle.id)}
-                  disabled={!currentBarcode}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 relative overflow-hidden ${
-                    isActive
-                      ? `bg-gradient-to-r ${c.gradient} text-white shadow-lg ${c.shadow} scale-[1.02]`
-                      : `${c.idle} text-foreground disabled:opacity-40 disabled:cursor-not-allowed`
-                  }`}
-                >
-                  {/* Left color bar always visible */}
-                  <div className={`absolute left-0 top-1 bottom-1 w-1 rounded-full ${isActive ? 'bg-white/40' : c.dot} ${!currentBarcode ? 'opacity-30' : 'opacity-70'}`} />
-                  <kbd className={`ml-2 px-2 py-0.5 rounded-md text-xs font-mono font-bold ${
-                    isActive ? 'bg-white/20' : c.badge
-                  }`}>
-                    {angle.key}
-                  </kbd>
-                  <span className="flex-1 text-left font-medium">{angle.label_th}</span>
-                  {count > 0 && (
-                    <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${
-                      isActive ? 'bg-white/20' : c.badge
-                    }`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={angles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-1.5">
+                {angles.map((angle, idx) => (
+                  <SortableAngleButton
+                    key={angle.id}
+                    angle={angle}
+                    idx={idx}
+                    isActive={currentAngle === angle.id}
+                    count={angleCounters[angle.id] || 0}
+                    disabled={!currentBarcode}
+                    onClick={() => currentBarcode && setAngle(angle.id)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
 
         {/* Session Info + Batch Toggle */}
