@@ -163,14 +163,14 @@ export function ShootingPage() {
               const count = angleCounters[angle.id] || 0;
               // Each angle gets its own color!
               const colors = [
-                { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500' },
-                { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500' },
-                { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500' },
-                { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500' },
-                { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500' },
-                { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500' },
-                { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500' },
-                { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500' },
+                { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500', idle: 'hover:bg-blue-50 dark:hover:bg-blue-950/30' },
+                { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500', idle: 'hover:bg-violet-50 dark:hover:bg-violet-950/30' },
+                { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500', idle: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30' },
+                { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500', idle: 'hover:bg-orange-50 dark:hover:bg-orange-950/30' },
+                { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500', idle: 'hover:bg-pink-50 dark:hover:bg-pink-950/30' },
+                { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500', idle: 'hover:bg-sky-50 dark:hover:bg-sky-950/30' },
+                { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500', idle: 'hover:bg-lime-50 dark:hover:bg-lime-950/30' },
+                { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500', idle: 'hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30' },
               ];
               const c = colors[idx % colors.length];
               return (
@@ -178,19 +178,20 @@ export function ShootingPage() {
                   key={angle.id}
                   onClick={() => currentBarcode && setAngle(angle.id)}
                   disabled={!currentBarcode}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 ${
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 relative overflow-hidden ${
                     isActive
                       ? `bg-gradient-to-r ${c.gradient} text-white shadow-lg ${c.shadow} scale-[1.02]`
-                      : 'hover:bg-accent/10 text-foreground disabled:opacity-40 disabled:cursor-not-allowed'
+                      : `${c.idle} text-foreground disabled:opacity-40 disabled:cursor-not-allowed`
                   }`}
                 >
-                  <kbd className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold ${
-                    isActive ? 'bg-white/20' : 'bg-muted text-muted-foreground'
+                  {/* Left color bar always visible */}
+                  <div className={`absolute left-0 top-1 bottom-1 w-1 rounded-full ${isActive ? 'bg-white/40' : c.dot} ${!currentBarcode ? 'opacity-30' : 'opacity-70'}`} />
+                  <kbd className={`ml-2 px-2 py-0.5 rounded-md text-xs font-mono font-bold ${
+                    isActive ? 'bg-white/20' : c.badge
                   }`}>
                     {angle.key}
                   </kbd>
-                  <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white/60' : c.dot + '/40'}`} />
-                  <span className="flex-1 text-left">{angle.label_th}</span>
+                  <span className="flex-1 text-left font-medium">{angle.label_th}</span>
                   {count > 0 && (
                     <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${
                       isActive ? 'bg-white/20' : c.badge
