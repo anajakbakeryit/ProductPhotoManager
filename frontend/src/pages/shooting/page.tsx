@@ -263,7 +263,7 @@ export function ShootingPage() {
                 <Button type="submit" disabled={!barcodeInput.trim()}>เริ่ม</Button>
               </form>
               <Button variant="outline" onClick={() => navigate('/')}>
-                <ChevronLeft className="size-4" /> กลับ Pipeline
+                <ChevronLeft className="size-4" /> กลับรายการสินค้า
               </Button>
             </div>
           </div>

@@ -87,7 +87,7 @@ export function PipelinePage() {
   return (
     <>
       <Toolbar>
-        <ToolbarHeading title="Pipeline" description="รายการสินค้าที่ต้องถ่ายรูป" />
+        <ToolbarHeading title="รายการสินค้า" description="สินค้าที่ต้องถ่ายรูป" />
         <ToolbarActions>
           <Button onClick={() => navigate('/shooting')}>
             <Camera className="size-4" />
