@@ -6,14 +6,22 @@ import confetti from 'canvas-confetti';
 import {
   Upload, ScanBarcode, Loader2, Camera, Check, RotateCw,
   ArrowRight, AlertTriangle, Wifi, WifiOff, ChevronLeft, Video,
-  Image, MonitorPlay,
+  Image, MonitorPlay, Keyboard,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
+import { useKeyboardShortcuts, type Shortcut } from '@/hooks/useKeyboardShortcuts';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 // ── Constants ──────────────────────────────────
 
@@ -96,7 +104,9 @@ export function ShootingPage() {
     name: string; color: string; category: string; note: string;
   } | null>(null);
   const [scannedBarcode, setScannedBarcode] = useState('');
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const barcodeRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch existing photos
   const { data: existingPhotos, refetch: refetchPhotos } = useQuery({
@@ -241,6 +251,108 @@ export function ShootingPage() {
 
   const activeAngleConfig = GUIDED_ANGLES.find((a) => a.id === activeAngle);
 
+  // ── Keyboard shortcuts ──
+
+  /** Cycle through empty angles starting from activeAngle. */
+  const cycleEmptyAngle = useCallback((direction: 'next' | 'prev') => {
+    const len = GUIDED_ANGLES.length;
+    const currentIdx = activeAngle
+      ? GUIDED_ANGLES.findIndex((a) => a.id === activeAngle)
+      : -1;
+    for (let i = 1; i <= len; i++) {
+      const idx = direction === 'next'
+        ? (currentIdx + i + len) % len
+        : (currentIdx - i + len * 2) % len;
+      const a = GUIDED_ANGLES[idx];
+      if (!photosByAngle.has(a.id)) {
+        setActiveAngle(a.id);
+        return;
+      }
+    }
+    toast.info('ครบทุกมุมแล้ว');
+  }, [activeAngle, photosByAngle]);
+
+  /** Back one step — with sensible per-step semantics. */
+  const handleEscape = useCallback(() => {
+    if (showShortcuts) { setShowShortcuts(false); return; }
+    if (step === 'scan') {
+      if (productForm) { setProductForm(null); setScannedBarcode(''); return; }
+      navigate('/');
+    } else if (step === 'method') {
+      setBarcode(''); setStep('scan'); setActiveAngle(null);
+    } else if (step === 'shooting') {
+      setStep('method');
+    } else if (step === 'spin360') {
+      setStep('shooting');
+    } else if (step === 'done') {
+      setStep('spin360');
+    }
+  }, [showShortcuts, step, productForm, navigate, setBarcode]);
+
+  const shortcuts: Shortcut[] = [
+    // Digit 1-8 → pick angle (step 'shooting' only, skip done angles)
+    ...GUIDED_ANGLES.map<Shortcut>((angle, i) => ({
+      key: String(i + 1),
+      label: String(i + 1),
+      description: `เลือกมุม${angle.label}`,
+      enabled: step === 'shooting' && !photosByAngle.has(angle.id),
+      handler: () => setActiveAngle(angle.id),
+    })),
+    // Tab → next empty angle
+    {
+      key: 'Tab',
+      shift: false,
+      label: 'Tab',
+      description: 'มุมถัดไปที่ยังไม่ถ่าย',
+      enabled: step === 'shooting',
+      handler: () => cycleEmptyAngle('next'),
+    },
+    // Shift+Tab → prev empty angle
+    {
+      key: 'Tab',
+      shift: true,
+      label: 'Shift+Tab',
+      description: 'มุมก่อนหน้าที่ยังไม่ถ่าย',
+      enabled: step === 'shooting',
+      handler: () => cycleEmptyAngle('prev'),
+    },
+    // Enter → open file picker for active angle
+    {
+      key: 'Enter',
+      label: 'Enter',
+      description: 'เปิดเลือกไฟล์สำหรับมุมที่เลือก',
+      enabled: step === 'shooting' && !!activeAngle && !uploading,
+      handler: () => fileInputRef.current?.click(),
+    },
+    // Escape → back one step / close cheat sheet
+    {
+      key: 'Escape',
+      label: 'Esc',
+      description: 'ย้อนกลับขั้นก่อนหน้า',
+      allowInInput: true,
+      handler: handleEscape,
+    },
+    // ? → open cheat sheet (two variants: some layouts emit '?', others emit '/' + shift)
+    {
+      key: '?',
+      label: '?',
+      description: 'แสดงแป้นลัด',
+      allowInInput: true,
+      handler: () => setShowShortcuts((v) => !v),
+    },
+    {
+      // Fallback: some browsers/layouts emit Shift+'/' rather than '?'
+      key: '/',
+      shift: true,
+      label: 'Shift+/',
+      description: 'แสดงแป้นลัด',
+      allowInInput: true,
+      handler: () => setShowShortcuts((v) => !v),
+    },
+  ];
+
+  useKeyboardShortcuts(shortcuts);
+
   // ── Render ──
 
   return (
@@ -257,6 +369,17 @@ export function ShootingPage() {
               : <><WifiOff className="size-3 text-red-500" /><span className="text-red-500">ขาดการเชื่อมต่อ</span></>
             }
           </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowShortcuts(true)}
+            title="แป้นลัด (?)"
+            aria-label="แสดงแป้นลัด"
+          >
+            <Keyboard className="size-4" />
+            <span className="hidden sm:inline">แป้นลัด</span>
+            <kbd className="hidden sm:inline-flex items-center justify-center rounded border border-border bg-muted/50 px-1.5 py-0.5 text-2xs font-mono text-muted-foreground">?</kbd>
+          </Button>
           {currentBarcode && (
             <Button variant="outline" size="sm" onClick={() => { setBarcode(''); setStep('scan'); setActiveAngle(null); }}>
               เปลี่ยน barcode
@@ -397,18 +520,33 @@ export function ShootingPage() {
           <div className="space-y-5">
             {/* 8-Angle Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {GUIDED_ANGLES.map((angle) => {
+              {GUIDED_ANGLES.map((angle, idx) => {
                 const existing = photosByAngle.get(angle.id);
                 const isActive = activeAngle === angle.id;
                 const isDone = !!existing;
+                const hotkey = idx + 1;
 
                 return (
                   <button key={angle.id} onClick={() => !isDone && setActiveAngle(angle.id)}
+                    aria-label={`${angle.label} (กด ${hotkey})`}
                     className={`relative rounded-xl border-2 overflow-hidden transition-all ${
                       isActive ? `${angle.border} ring-4 ${angle.ring} shadow-lg`
                       : isDone ? 'border-emerald-500/30 bg-emerald-500/5'
                       : 'border-border hover:border-muted-foreground/30'
                     }`}>
+                    {/* Hotkey badge — hide when done (hotkey is disabled for completed angles) */}
+                    {!isDone && (
+                      <kbd
+                        className={`absolute top-2 right-2 z-10 flex size-6 items-center justify-center rounded-md border font-mono text-2xs font-bold shadow-sm transition-colors ${
+                          isActive
+                            ? `${angle.border} bg-background ${angle.text}`
+                            : 'border-border bg-background/90 text-muted-foreground backdrop-blur-sm'
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {hotkey}
+                      </kbd>
+                    )}
                     <div className="aspect-square bg-muted relative flex items-center justify-center">
                       {existing ? (
                         <>
@@ -471,7 +609,7 @@ export function ShootingPage() {
                     <p className="text-sm text-muted-foreground mt-1">ลากรูปมาวางที่นี่ หรือคลิกเลือกไฟล์</p>
                     <label className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium cursor-pointer hover:bg-primary/90 shadow-sm">
                       เลือกไฟล์
-                      <input type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
+                      <input ref={fileInputRef} type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
                         className="hidden" onChange={(e) => e.target.files && handleUpload(e.target.files)} />
                     </label>
                   </>
@@ -604,6 +742,17 @@ export function ShootingPage() {
           </div>
         )}
 
+        {/* Shortcut hint — only on shooting step */}
+        {step === 'shooting' && activeAngle && !uploading && (
+          <p className="text-center text-2xs text-muted-foreground">
+            <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono">1</kbd>–
+            <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono">8</kbd> เลือกมุม ·{' '}
+            <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono">Enter</kbd> อัปโหลด ·{' '}
+            <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono">Tab</kbd> มุมถัดไป ·{' '}
+            <kbd className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono">?</kbd> ดูทั้งหมด
+          </p>
+        )}
+
         {/* ── Step 5: Done ── */}
         {step === 'done' && (
           <div className="flex items-center justify-center min-h-[50vh]">
@@ -648,6 +797,80 @@ export function ShootingPage() {
           </div>
         )}
       </div>
+
+      {/* ── Shortcut cheat sheet ── */}
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent
+          // Let useKeyboardShortcuts own Escape; prevent Radix from racing with it.
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Keyboard className="size-5 text-primary" /> แป้นลัด (Keyboard Shortcuts)
+            </DialogTitle>
+            <DialogDescription>
+              กดปุ่มเหล่านี้เพื่อถ่ายภาพเร็วขึ้น — ทำงานเมื่อไม่ได้พิมพ์ในช่องกรอกข้อมูล
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 px-6 pb-6">
+            {/* Angle group */}
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                เลือกมุมถ่าย
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {GUIDED_ANGLES.map((angle, idx) => (
+                  <div key={angle.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                    <span className="text-sm text-foreground">{angle.label}</span>
+                    <kbd className={`flex size-7 items-center justify-center rounded-md border-2 ${angle.border} bg-background font-mono text-xs font-bold ${angle.text}`}>
+                      {idx + 1}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Actions group */}
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                การทำงาน
+              </h3>
+              <div className="space-y-2">
+                {[
+                  { keys: ['Tab'], desc: 'ไปมุมถัดไปที่ยังไม่ถ่าย' },
+                  { keys: ['Shift', '+', 'Tab'], desc: 'กลับมุมก่อนหน้าที่ยังไม่ถ่าย' },
+                  { keys: ['Enter'], desc: 'เปิดเลือกไฟล์สำหรับมุมที่เลือก' },
+                  { keys: ['Esc'], desc: 'ย้อนกลับขั้นก่อนหน้า' },
+                  { keys: ['?'], desc: 'เปิด/ปิดหน้านี้' },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                    <span className="text-sm text-foreground">{row.desc}</span>
+                    <div className="flex items-center gap-1">
+                      {row.keys.map((k, ki) =>
+                        k === '+' ? (
+                          <span key={ki} className="text-xs text-muted-foreground">+</span>
+                        ) : (
+                          <kbd
+                            key={ki}
+                            className="flex min-w-[2rem] items-center justify-center rounded-md border border-border bg-background px-2 py-1 font-mono text-xs font-bold text-foreground shadow-sm"
+                          >
+                            {k}
+                          </kbd>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <p className="text-2xs text-muted-foreground">
+              💡 แป้นลัดตัวเลข 1-8 จะทำงานเฉพาะตอนถ่ายรูป และจะข้ามมุมที่ถ่ายเสร็จแล้ว
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
