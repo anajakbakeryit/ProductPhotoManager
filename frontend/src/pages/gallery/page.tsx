@@ -24,7 +24,7 @@ export function GalleryPage() {
 
   // View
   const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
-  const [viewMode, setViewMode] = useState<'grid' | 'product'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'product'>('product');
 
   // Selection
   const [selectMode, setSelectMode] = useState(false);
