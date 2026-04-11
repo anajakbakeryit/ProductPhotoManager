@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { Image as ImageIcon, Eye, CheckSquare, Square, Copy } from 'lucide-react';
+import { Image as ImageIcon, Eye, CheckSquare, Square, Copy, FolderOpen, ChevronDown, ChevronRight, Camera } from 'lucide-react';
 import type { Photo } from './types';
 
 interface PhotoGridProps {
@@ -81,36 +82,100 @@ function PhotoCard({ photo, selectMode, isSelected, onClick, onView360 }: {
   );
 }
 
+const ANGLE_LABELS: Record<string, string> = {
+  front: 'ด้านหน้า', back: 'ด้านหลัง', left: 'ด้านซ้าย', right: 'ด้านขวา',
+  top: 'ด้านบน', bottom: 'ด้านล่าง', detail: 'รายละเอียด', package: 'แพ็คเกจ', '360': '360°',
+};
+
+const ANGLE_COLORS: Record<string, string> = {
+  front: 'text-blue-500', back: 'text-violet-500', left: 'text-emerald-500', right: 'text-orange-500',
+  top: 'text-pink-500', bottom: 'text-sky-500', detail: 'text-lime-600', package: 'text-fuchsia-500', '360': 'text-amber-500',
+};
+
 function ProductView({ photos, onPhotoClick }: { photos: Photo[]; onPhotoClick: (photo: Photo) => void }) {
+  const [expandedBarcodes, setExpandedBarcodes] = useState<Set<string>>(new Set());
   const barcodes = Array.from(new Set(photos.map((p) => p.barcode)));
+
+  const toggleBarcode = (bc: string) => {
+    setExpandedBarcodes((prev) => {
+      const next = new Set(prev);
+      next.has(bc) ? next.delete(bc) : next.add(bc);
+      return next;
+    });
+  };
+
+  // Auto-expand first barcode
+  if (expandedBarcodes.size === 0 && barcodes.length > 0) {
+    expandedBarcodes.add(barcodes[0]);
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {barcodes.map((barcode) => {
         const barcodePhotos = photos.filter((p) => p.barcode === barcode);
+        const isExpanded = expandedBarcodes.has(barcode);
+
+        // Group by angle
+        const angleGroups = new Map<string, Photo[]>();
+        for (const p of barcodePhotos) {
+          if (!angleGroups.has(p.angle)) angleGroups.set(p.angle, []);
+          angleGroups.get(p.angle)!.push(p);
+        }
+        const angles = Array.from(angleGroups.keys());
+
         return (
           <div key={barcode} className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/30">
-              <div className="flex items-center gap-3">
-                <span className="font-mono font-bold text-primary">{barcode}</span>
-                <span className="text-2xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{barcodePhotos.length} รูป</span>
+            {/* Barcode folder header */}
+            <button onClick={() => toggleBarcode(barcode)}
+              className="w-full flex items-center gap-3 p-4 border-b border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-left">
+              {isExpanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
+              <FolderOpen className="size-4.5 text-primary" />
+              <span className="font-mono font-bold text-foreground">{barcode}</span>
+              <span className="text-2xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                {barcodePhotos.length} รูป · {angles.length} มุม
+              </span>
+              <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(barcode); toast.success('คัดลอกแล้ว'); }}
+                className="ml-auto text-muted-foreground hover:text-primary">
+                <Copy className="size-3.5" />
+              </button>
+            </button>
+
+            {/* Angle sub-folders */}
+            {isExpanded && (
+              <div className="divide-y divide-border/30">
+                {angles.map((angle) => {
+                  const anglePhotos = angleGroups.get(angle) || [];
+                  return (
+                    <div key={angle} className="p-4">
+                      {/* Angle label */}
+                      <div className="flex items-center gap-2 mb-3">
+                        <Camera className={`size-3.5 ${ANGLE_COLORS[angle] || 'text-muted-foreground'}`} />
+                        <span className={`text-xs font-semibold ${ANGLE_COLORS[angle] || 'text-muted-foreground'}`}>
+                          {ANGLE_LABELS[angle] || angle}
+                        </span>
+                        <span className="text-2xs text-muted-foreground">{anglePhotos.length} รูป</span>
+                      </div>
+
+                      {/* Photos in this angle */}
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                        {anglePhotos.map((photo) => (
+                          <div key={photo.id} onClick={() => onPhotoClick(photo)}
+                            className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                            <div className="aspect-square bg-muted relative">
+                              <img src={photo.thumbnail_url} alt={photo.filename}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                              <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${
+                                photo.status === 'done' ? 'bg-emerald-500' : photo.status === 'processing' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground'
+                              }`} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <button onClick={() => { navigator.clipboard.writeText(barcode); toast.success('คัดลอกแล้ว'); }}
-                className="text-muted-foreground hover:text-primary"><Copy className="size-3.5" /></button>
-            </div>
-            <div className="p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-              {barcodePhotos.map((photo) => (
-                <div key={photo.id} onClick={() => onPhotoClick(photo)}
-                  className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md transition-all">
-                  <div className="aspect-square bg-muted relative">
-                    <img src={photo.thumbnail_url} alt={photo.filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                    <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${photo.status === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
-                  </div>
-                  <div className="px-1.5 py-1">
-                    <p className="text-2xs text-center font-medium text-muted-foreground">{photo.angle}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            )}
           </div>
         );
       })}
