@@ -104,7 +104,6 @@ function ProductView({ photos, onPhotoClick }: { photos: Photo[]; onPhotoClick: 
     });
   };
 
-  // Auto-expand first barcode
   if (expandedBarcodes.size === 0 && barcodes.length > 0) {
     expandedBarcodes.add(barcodes[0]);
   }
@@ -114,25 +113,17 @@ function ProductView({ photos, onPhotoClick }: { photos: Photo[]; onPhotoClick: 
       {barcodes.map((barcode) => {
         const barcodePhotos = photos.filter((p) => p.barcode === barcode);
         const isExpanded = expandedBarcodes.has(barcode);
-
-        // Group by angle
-        const angleGroups = new Map<string, Photo[]>();
-        for (const p of barcodePhotos) {
-          if (!angleGroups.has(p.angle)) angleGroups.set(p.angle, []);
-          angleGroups.get(p.angle)!.push(p);
-        }
-        const angles = Array.from(angleGroups.keys());
+        const angles = new Set(barcodePhotos.map((p) => p.angle));
 
         return (
           <div key={barcode} className="rounded-xl border border-border bg-card overflow-hidden">
-            {/* Barcode folder header */}
             <button onClick={() => toggleBarcode(barcode)}
               className="w-full flex items-center gap-3 p-4 border-b border-border/50 bg-muted/30 hover:bg-muted/50 transition-colors text-left">
               {isExpanded ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}
               <FolderOpen className="size-4.5 text-primary" />
               <span className="font-mono font-bold text-foreground">{barcode}</span>
               <span className="text-2xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
-                {barcodePhotos.length} รูป · {angles.length} มุม
+                {barcodePhotos.length} รูป · {angles.size} มุม
               </span>
               <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(barcode); toast.success('คัดลอกแล้ว'); }}
                 className="ml-auto text-muted-foreground hover:text-primary">
@@ -140,40 +131,27 @@ function ProductView({ photos, onPhotoClick }: { photos: Photo[]; onPhotoClick: 
               </button>
             </button>
 
-            {/* Angle sub-folders */}
             {isExpanded && (
-              <div className="divide-y divide-border/30">
-                {angles.map((angle) => {
-                  const anglePhotos = angleGroups.get(angle) || [];
-                  return (
-                    <div key={angle} className="p-4">
-                      {/* Angle label */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <Camera className={`size-3.5 ${ANGLE_COLORS[angle] || 'text-muted-foreground'}`} />
-                        <span className={`text-xs font-semibold ${ANGLE_COLORS[angle] || 'text-muted-foreground'}`}>
-                          {ANGLE_LABELS[angle] || angle}
-                        </span>
-                        <span className="text-2xs text-muted-foreground">{anglePhotos.length} รูป</span>
+              <div className="p-4">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                  {barcodePhotos.map((photo) => (
+                    <div key={photo.id} onClick={() => onPhotoClick(photo)}
+                      className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                      <div className="aspect-square bg-muted relative">
+                        <img src={photo.thumbnail_url} alt={photo.filename}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                        <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${
+                          photo.status === 'done' ? 'bg-emerald-500' : photo.status === 'processing' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground'
+                        }`} />
                       </div>
-
-                      {/* Photos in this angle */}
-                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                        {anglePhotos.map((photo) => (
-                          <div key={photo.id} onClick={() => onPhotoClick(photo)}
-                            className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
-                            <div className="aspect-square bg-muted relative">
-                              <img src={photo.thumbnail_url} alt={photo.filename}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                              <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${
-                                photo.status === 'done' ? 'bg-emerald-500' : photo.status === 'processing' ? 'bg-amber-500 animate-pulse' : 'bg-muted-foreground'
-                              }`} />
-                            </div>
-                          </div>
-                        ))}
+                      <div className="px-1.5 py-1">
+                        <p className={`text-2xs text-center font-medium ${ANGLE_COLORS[photo.angle] || 'text-muted-foreground'}`}>
+                          {ANGLE_LABELS[photo.angle] || photo.angle}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             )}
           </div>

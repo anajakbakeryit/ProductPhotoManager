@@ -53,13 +53,17 @@ async def upload_photos(
         db.add(product)
         await db.flush()
 
-    # Get current max count for this barcode+angle
-    count_result = await db.execute(
-        select(func.max(Photo.count)).where(
-            Photo.barcode == barcode, Photo.angle == angle, Photo.is_deleted == False
-        )
+    # Soft-delete old photos of same barcode+angle (re-shoot replaces old)
+    from datetime import datetime as _dt
+    old_photos = await db.execute(
+        select(Photo).where(Photo.barcode == barcode, Photo.angle == angle, Photo.is_deleted == False)
     )
-    current_max = count_result.scalar() or 0
+    for old in old_photos.scalars().all():
+        old.is_deleted = True
+        old.deleted_at = _dt.now()
+        logger.info(f"Replaced old photo: {old.filename}")
+
+    current_max = 0
 
     # Validate file count + extensions
     ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".cr2", ".cr3", ".arw", ".nef"}
