@@ -67,3 +67,48 @@ async def get_daily_stats(
     )
     rows = result.all()
     return [{"date": str(r.date), "count": r.count} for r in rows]
+
+
+@router.get("/employees")
+async def get_employee_stats(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Per-employee photo stats for dashboard."""
+    result = await db.execute(
+        select(
+            Photo.uploaded_by,
+            func.count(Photo.id).label("photo_count"),
+            func.count(func.distinct(Photo.barcode)).label("barcode_count"),
+            func.avg(Photo.quality_score).label("avg_quality"),
+        )
+        .where(Photo.is_deleted == False, Photo.uploaded_by.isnot(None))
+        .group_by(Photo.uploaded_by)
+        .order_by(func.count(Photo.id).desc())
+    )
+    rows = result.all()
+
+    # Count quality issues
+    issues_result = await db.execute(
+        select(Photo.uploaded_by, func.count(Photo.id))
+        .where(Photo.is_deleted == False, Photo.quality_score.isnot(None), Photo.quality_score < 3)
+        .group_by(Photo.uploaded_by)
+    )
+    issues_map = dict(issues_result.all())
+
+    # Get user display names
+    user_ids = [r.uploaded_by for r in rows if r.uploaded_by]
+    users_result = await db.execute(select(User.id, User.display_name).where(User.id.in_(user_ids))) if user_ids else None
+    names = dict(users_result.all()) if users_result else {}
+
+    return [
+        {
+            "user_id": r.uploaded_by,
+            "display_name": names.get(r.uploaded_by, ""),
+            "photo_count": r.photo_count,
+            "barcode_count": r.barcode_count,
+            "avg_quality": round(float(r.avg_quality), 1) if r.avg_quality else None,
+            "issues_count": issues_map.get(r.uploaded_by, 0),
+        }
+        for r in rows
+    ]

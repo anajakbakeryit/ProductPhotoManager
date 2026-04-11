@@ -1,456 +1,322 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
-import { Upload, Wifi, WifiOff, ScanBarcode, Loader2, Camera, FolderUp, GripVertical } from 'lucide-react';
+import {
+  Upload, ScanBarcode, Loader2, Camera, Check, RotateCw,
+  ArrowRight, AlertTriangle, Wifi, WifiOff, ChevronLeft,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
 import { useProcessingStatus } from '@/hooks/useProcessingStatus';
-import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
-} from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
-const ANGLE_COLORS = [
-  { gradient: 'from-blue-500 to-cyan-400', shadow: 'shadow-blue-500/25', badge: 'bg-blue-500/10 text-blue-500', dot: 'bg-blue-500', idle: 'hover:bg-blue-50 dark:hover:bg-blue-950/30' },
-  { gradient: 'from-violet-500 to-purple-400', shadow: 'shadow-violet-500/25', badge: 'bg-violet-500/10 text-violet-500', dot: 'bg-violet-500', idle: 'hover:bg-violet-50 dark:hover:bg-violet-950/30' },
-  { gradient: 'from-emerald-500 to-teal-400', shadow: 'shadow-emerald-500/25', badge: 'bg-emerald-500/10 text-emerald-500', dot: 'bg-emerald-500', idle: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30' },
-  { gradient: 'from-orange-500 to-amber-400', shadow: 'shadow-orange-500/25', badge: 'bg-orange-500/10 text-orange-500', dot: 'bg-orange-500', idle: 'hover:bg-orange-50 dark:hover:bg-orange-950/30' },
-  { gradient: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/25', badge: 'bg-pink-500/10 text-pink-500', dot: 'bg-pink-500', idle: 'hover:bg-pink-50 dark:hover:bg-pink-950/30' },
-  { gradient: 'from-sky-500 to-blue-400', shadow: 'shadow-sky-500/25', badge: 'bg-sky-500/10 text-sky-500', dot: 'bg-sky-500', idle: 'hover:bg-sky-50 dark:hover:bg-sky-950/30' },
-  { gradient: 'from-lime-500 to-green-400', shadow: 'shadow-lime-500/25', badge: 'bg-lime-500/10 text-lime-600', dot: 'bg-lime-500', idle: 'hover:bg-lime-50 dark:hover:bg-lime-950/30' },
-  { gradient: 'from-fuchsia-500 to-pink-400', shadow: 'shadow-fuchsia-500/25', badge: 'bg-fuchsia-500/10 text-fuchsia-500', dot: 'bg-fuchsia-500', idle: 'hover:bg-fuchsia-50 dark:hover:bg-fuchsia-950/30' },
+const GUIDED_ANGLES = [
+  { id: 'front', label: 'ด้านหน้า', color: 'blue' },
+  { id: 'back', label: 'ด้านหลัง', color: 'violet' },
+  { id: 'left', label: 'ด้านซ้าย', color: 'emerald' },
+  { id: 'right', label: 'ด้านขวา', color: 'orange' },
+  { id: 'top', label: 'ด้านบน', color: 'pink' },
+  { id: 'bottom', label: 'ด้านล่าง', color: 'sky' },
+  { id: 'detail', label: 'รายละเอียด', color: 'lime' },
+  { id: 'package', label: 'แพ็คเกจ', color: 'fuchsia' },
 ];
 
-function SortableAngleButton({ angle, idx, isActive, count, disabled, onClick }: {
-  angle: { id: string; label_th: string; key: string };
-  idx: number; isActive: boolean; count: number; disabled: boolean; onClick: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: angle.id });
-  const c = ANGLE_COLORS[idx % ANGLE_COLORS.length];
-  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined };
-
-  return (
-    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50' : ''}>
-      <button
-        onClick={onClick}
-        disabled={disabled}
-        className={`w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm transition-all duration-200 relative overflow-hidden ${
-          isActive
-            ? `bg-gradient-to-r ${c.gradient} text-white shadow-lg ${c.shadow} scale-[1.02]`
-            : `${c.idle} text-foreground disabled:opacity-40 disabled:cursor-not-allowed`
-        }`}
-      >
-        <div className={`absolute left-0 top-1 bottom-1 w-1 rounded-full ${isActive ? 'bg-white/40' : c.dot} ${disabled ? 'opacity-30' : 'opacity-70'}`} />
-        <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing ml-1 touch-none">
-          <GripVertical className={`size-3.5 ${isActive ? 'text-white/50' : 'text-muted-foreground/40'}`} />
-        </span>
-        <kbd className={`px-2 py-0.5 rounded-md text-xs font-mono font-bold ${isActive ? 'bg-white/20' : c.badge}`}>
-          {angle.key}
-        </kbd>
-        <span className="flex-1 text-left font-medium">{angle.label_th}</span>
-        {count > 0 && (
-          <span className={`min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold ${isActive ? 'bg-white/20' : c.badge}`}>
-            {count}
-          </span>
-        )}
-      </button>
-    </div>
-  );
+interface ExistingPhoto {
+  id: number;
+  angle: string;
+  thumbnail_url: string;
+  quality_score: number | null;
+  quality_issues: string[] | null;
 }
 
 export function ShootingPage() {
-  const {
-    currentBarcode, currentAngle, angleCounters, angles,
-    setBarcode, setAngle, incrementCounter, setLastPreview, lastPreviewUrl, reorderAngles,
-  } = useShootingStore();
-
-  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIdx = angles.findIndex((a) => a.id === active.id);
-      const newIdx = angles.findIndex((a) => a.id === over.id);
-      if (oldIdx !== -1 && newIdx !== -1) reorderAngles(oldIdx, newIdx);
-    }
-  };
-
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { currentBarcode, setBarcode } = useShootingStore();
   const { lastMessage, isConnected } = useProcessingStatus();
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [productInfo, setProductInfo] = useState<{ name: string; category: string } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [activityLog, setActivityLog] = useState<{ time: string; msg: string; type: string }[]>([]);
-  const barcodeRef = useRef<HTMLInputElement>(null);
-  const logRef = useRef<HTMLDivElement>(null);
 
-  const log = useCallback((msg: string, type = 'info') => {
-    const time = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setActivityLog((prev) => [...prev.slice(-50), { time, msg, type }]);
-    setTimeout(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }), 50);
-  }, []);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [activeAngle, setActiveAngle] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+
+  // Fetch existing photos for current barcode
+  const { data: existingPhotos, refetch: refetchPhotos } = useQuery({
+    queryKey: ['shooting-photos', currentBarcode],
+    queryFn: () => api.get<{ data: ExistingPhoto[] }>(`/api/photos?barcode=${currentBarcode}&limit=100`),
+    enabled: !!currentBarcode,
+  });
+
+  const photosByAngle = new Map<string, ExistingPhoto>();
+  for (const p of existingPhotos?.data || []) {
+    if (!photosByAngle.has(p.angle)) photosByAngle.set(p.angle, p);
+  }
+
+  const doneCount = GUIDED_ANGLES.filter((a) => photosByAngle.has(a.id)).length;
+  const allDone = doneCount === GUIDED_ANGLES.length;
+
+  // Auto-select first empty angle
+  useEffect(() => {
+    if (!currentBarcode) return;
+    const firstEmpty = GUIDED_ANGLES.find((a) => !photosByAngle.has(a.id));
+    if (firstEmpty && !activeAngle) {
+      setActiveAngle(firstEmpty.id);
+    }
+  }, [currentBarcode, photosByAngle, activeAngle]);
 
   // WebSocket processing status
   useEffect(() => {
     if (!lastMessage) return;
     if (lastMessage.type === 'processing_done') {
-      log(`✓ ประมวลผลเสร็จ: ${lastMessage.barcode}`, 'success');
       toast.success('ประมวลผลเสร็จ!', {
         description: lastMessage.barcode,
-        action: { label: 'ดูผล', onClick: () => window.open(`/gallery?search=${lastMessage.barcode}`, '_blank') },
+        action: { label: 'ดูผล', onClick: () => navigate(`/gallery?search=${lastMessage.barcode}`) },
       });
-    } else if (lastMessage.type === 'processing_error') {
-      log(`✗ ประมวลผลผิดพลาด: ${lastMessage.barcode}`, 'error');
-    } else if (lastMessage.type === 'processing_start') {
-      log(`⏳ กำลังประมวลผล: ${lastMessage.filename || lastMessage.barcode}`, 'info');
     }
-  }, [lastMessage, log]);
+  }, [lastMessage, navigate]);
 
   // Barcode scan
   const handleBarcodeScan = async () => {
     const raw = barcodeInput.trim();
     if (!raw) return;
     try {
-      let product;
-      try {
-        product = await api.get<{ barcode: string; name: string; category: string }>(`/api/products/${raw}`);
-      } catch {
-        product = await api.post<{ barcode: string; name: string; category: string }>('/api/products', { barcode: raw });
-      }
+      try { await api.get(`/api/products/${raw}`); }
+      catch { await api.post('/api/products', { barcode: raw }); }
       setBarcode(raw);
-      setProductInfo({ name: product.name, category: product.category });
-      log(`สแกน: ${raw}${product.name ? ` — ${product.name}` : ''}`, 'success');
+      setActiveAngle(null); // Reset to auto-select first empty
       setBarcodeInput('');
+      refetchPhotos();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     }
   };
 
-  // File upload
-  const handleFiles = async (files: FileList | File[]) => {
-    if (!currentBarcode || !currentAngle) {
-      toast.error('กรุณาสแกนบาร์โค้ดและเลือกมุมถ่ายก่อน');
-      return;
-    }
+  // Upload photo for active angle
+  const handleUpload = async (files: FileList | File[]) => {
+    if (!currentBarcode || !activeAngle) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append('barcode', currentBarcode);
-    formData.append('angle', currentAngle);
-    for (const file of files) formData.append('files', file);
+    const fd = new FormData();
+    fd.append('barcode', currentBarcode);
+    fd.append('angle', activeAngle);
+    for (const f of files) fd.append('files', f);
     try {
-      const res = await api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
-        '/api/photos/upload', formData
+      const res = await api.upload<{ uploaded: { filename: string; quality: { score: number; issues: string[]; passed: boolean } }[]; total: number }>(
+        '/api/photos/upload', fd
       );
-      for (const photo of res.uploaded) {
-        incrementCounter(currentAngle);
-        setLastPreview(photo.preview_url);
-        log(`✓ ${photo.filename}`, 'success');
+      const qc = res.uploaded[0]?.quality;
+      if (qc && !qc.passed) {
+        toast.warning('คุณภาพรูปต่ำ', {
+          description: qc.issues.map((i: string) =>
+            i === 'blurry' ? 'ภาพเบลอ' : i === 'too_dark' ? 'มืดเกินไป' : i === 'too_bright' ? 'สว่างเกินไป' : i === 'no_product' ? 'ไม่เห็นสินค้า' : i
+          ).join(', '),
+        });
+      } else {
+        toast.success(`✓ ${activeAngle} — อัปโหลดสำเร็จ`);
       }
-      toast.success(`อัปโหลดสำเร็จ ${res.total} รูป`);
-      // Check if all angles done → confetti!
-      const updatedCounters = useShootingStore.getState().angleCounters;
-      const allDone = angles.every((a) => (updatedCounters[a.id] || 0) > 0);
-      if (allDone) {
+
+      await refetchPhotos();
+      queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
+
+      // Auto-advance to next empty angle
+      const nextEmpty = GUIDED_ANGLES.find((a) => a.id !== activeAngle && !photosByAngle.has(a.id));
+      if (nextEmpty) {
+        setActiveAngle(nextEmpty.id);
+      } else {
+        // All done!
+        setActiveAngle(null);
         confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
-        toast.success('🎉 ครบทุกมุมแล้ว!', { description: `${currentBarcode} — ถ่ายครบ ${angles.length} มุม` });
+        toast.success('🎉 ครบ 8 มุมแล้ว!');
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ');
-      log(`✗ อัปโหลดไม่สำเร็จ`, 'error');
     } finally {
       setUploading(false);
     }
   };
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
-  };
-
-  // Batch upload — auto-detect angle from filename
-  const [batchMode, setBatchMode] = useState(false);
-  const handleBatchUpload = async (files: FileList | File[]) => {
-    if (!currentBarcode) {
-      toast.error('กรุณาสแกนบาร์โค้ดก่อน');
-      return;
-    }
-    setUploading(true);
-    const fileArray = Array.from(files);
-
-    // Use backend AI angle detection
-    let angleMap: Record<string, string> = {};
-    try {
-      const res = await api.post<{ angles: Record<string, string> }>('/api/photos/detect-angles', {
-        filenames: fileArray.map((f) => f.name),
-      });
-      angleMap = res.angles;
-    } catch {
-      // Fallback: all files → front
-      for (const f of fileArray) angleMap[f.name] = 'front';
-    }
-
-    const grouped = new Map<string, File[]>();
-    for (const f of fileArray) {
-      const angle = angleMap[f.name] || 'front';
-      if (!grouped.has(angle)) grouped.set(angle, []);
-      grouped.get(angle)!.push(f);
-    }
-
-    const uploadTasks = Array.from(grouped.entries()).map(([angle, angleFiles]) => {
-      const fd = new FormData();
-      fd.append('barcode', currentBarcode);
-      fd.append('angle', angle);
-      for (const f of angleFiles) fd.append('files', f);
-      return api.upload<{ uploaded: { filename: string; preview_url: string }[]; total: number }>(
-        '/api/photos/upload', fd
-      ).then((res) => {
-        for (const photo of res.uploaded) {
-          incrementCounter(angle);
-          setLastPreview(photo.preview_url);
-          log(`✓ ${photo.filename} → ${angle}`, 'success');
-        }
-        return res.total;
-      }).catch(() => {
-        log(`✗ อัปโหลด ${angle} ไม่สำเร็จ`, 'error');
-        return 0;
-      });
-    });
-
-    const results = await Promise.allSettled(uploadTasks);
-    const totalUploaded = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
-    toast.success(`Batch อัปโหลดสำเร็จ ${totalUploaded} รูป (${grouped.size} มุม)`);
-    // Check completion
-    const updatedCounters = useShootingStore.getState().angleCounters;
-    const allDone = angles.every((a) => (updatedCounters[a.id] || 0) > 0);
-    if (allDone) {
-      confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
-      toast.success('🎉 ครบทุกมุมแล้ว!', { description: `${currentBarcode} — ถ่ายครบ ${angles.length} มุม` });
-    }
-    setUploading(false);
-  };
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // F1-F8 should work even when typing in input
-      const keyMap: Record<string, string> = {};
-      angles.forEach((a) => { keyMap[a.key.toUpperCase()] = a.id; });
-      if (keyMap[e.key.toUpperCase()] && currentBarcode) {
-        e.preventDefault();
-        setAngle(keyMap[e.key.toUpperCase()]);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [angles, currentBarcode, setAngle]);
-
-  const totalPhotos = Object.values(angleCounters).reduce((a, b) => a + b, 0);
-
-  return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-var(--header-height,70px)-49px)] gap-4 p-4 overflow-auto">
-      {/* ── LEFT PANEL ── */}
-      <div className="w-full lg:w-80 lg:shrink-0 flex flex-col gap-3 lg:overflow-y-auto">
-
-        {/* Barcode */}
-        <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-card to-blue-950/20 p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-              <ScanBarcode className="w-4 h-4 text-white" />
-            </div>
-            <h3 className="text-sm font-semibold text-foreground">สแกนบาร์โค้ด</h3>
-          </div>
-          <div className="relative">
-            <input
-              ref={barcodeRef}
-              type="text"
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleBarcodeScan()}
-              placeholder="สแกนหรือพิมพ์บาร์โค้ด..."
-              className="w-full px-4 py-3.5 rounded-xl border border-border bg-background text-foreground text-lg font-mono font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent focus:shadow-lg focus:shadow-primary/10 transition-all placeholder:text-muted-foreground/40"
-              autoFocus
-            />
-          </div>
-          {currentBarcode && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500 to-violet-600 text-white text-sm font-bold shadow-sm">
-                {currentBarcode}
-              </span>
-              {productInfo?.name && (
-                <span className="text-sm text-muted-foreground">{productInfo.name}</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Angle Selection */}
-        <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-card to-violet-950/20 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-foreground">🎯 มุมถ่ายภาพ</h3>
-            {!currentBarcode && (
-              <span className="text-2xs text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md font-medium">
-                สแกนบาร์โค้ดก่อน
-              </span>
-            )}
-          </div>
-          <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={angles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-1.5">
-                {angles.map((angle, idx) => (
-                  <SortableAngleButton
-                    key={angle.id}
-                    angle={angle}
-                    idx={idx}
-                    isActive={currentAngle === angle.id}
-                    count={angleCounters[angle.id] || 0}
-                    disabled={!currentBarcode}
-                    onClick={() => currentBarcode && setAngle(angle.id)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        </div>
-
-        {/* Progress Wheel + Batch Toggle */}
-        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-card to-emerald-950/20 p-5">
-          <div className="flex items-center gap-4">
-            {/* SVG Progress Ring */}
-            <div className="relative size-16 shrink-0">
-              <svg viewBox="0 0 36 36" className="size-16 -rotate-90">
-                {angles.map((a, i) => {
-                  const done = (angleCounters[a.id] || 0) > 0;
-                  const total = angles.length;
-                  const gap = 2;
-                  const segLen = (100 - total * gap) / total;
-                  const offset = i * (segLen + gap);
-                  return (
-                    <circle key={a.id} cx="18" cy="18" r="15.5" fill="none" strokeWidth="3"
-                      className={done ? 'stroke-emerald-500' : 'stroke-muted'}
-                      strokeDasharray={`${segLen} ${100 - segLen}`}
-                      strokeDashoffset={-offset} strokeLinecap="round" />
-                  );
-                })}
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-sm font-bold text-foreground">
-                  {angles.filter((a) => (angleCounters[a.id] || 0) > 0).length}/{angles.length}
-                </span>
-              </div>
+  // No barcode selected — show scan screen
+  if (!currentBarcode) {
+    return (
+      <>
+        <Toolbar>
+          <ToolbarHeading title="ถ่ายภาพ" description="สแกนบาร์โค้ดเพื่อเริ่มถ่าย" />
+        </Toolbar>
+        <div className="container pb-7 flex items-center justify-center min-h-[60vh]">
+          <div className="max-w-md w-full space-y-6 text-center">
+            <div className="size-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto">
+              <ScanBarcode className="size-10 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{totalPhotos}</p>
-              <p className="text-xs text-muted-foreground">รูปทั้งหมด · {angles.filter((a) => (angleCounters[a.id] || 0) > 0).length} มุม</p>
+              <h2 className="text-xl font-bold text-foreground">สแกนบาร์โค้ด</h2>
+              <p className="text-sm text-muted-foreground mt-1">สแกนหรือพิมพ์บาร์โค้ดเพื่อเริ่มถ่ายรูป</p>
             </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleBarcodeScan(); }} className="flex gap-2">
+              <Input ref={barcodeRef} value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)}
+                placeholder="บาร์โค้ด..." className="font-mono text-lg text-center" autoFocus />
+              <Button type="submit" disabled={!barcodeInput.trim()}>เริ่ม</Button>
+            </form>
+            <Button variant="outline" onClick={() => navigate('/')}>
+              <ChevronLeft className="size-4" /> กลับ Pipeline
+            </Button>
           </div>
-          <button
-            onClick={() => setBatchMode(!batchMode)}
-            className={`mt-3 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-              batchMode
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            <FolderUp className="size-3.5" />
-            {batchMode ? 'Batch Mode เปิดอยู่' : 'Batch Upload'}
-          </button>
         </div>
-      </div>
+      </>
+    );
+  }
 
-      {/* ── MAIN AREA ── */}
-      <div className="flex-1 flex flex-col gap-3 min-w-0 min-h-[400px]">
+  // Active barcode — show guided 8-angle grid
+  const activeAngleConfig = GUIDED_ANGLES.find((a) => a.id === activeAngle);
 
-        {/* Dropzone + Preview */}
-        <div
-          className={`flex-1 rounded-2xl border-2 border-dashed transition-all duration-300 flex items-center justify-center relative overflow-hidden ${
-            isDragging ? 'border-primary bg-primary/5 shadow-inner scale-[0.99]' :
-            uploading ? 'border-amber-400 bg-amber-400/5' :
-            'border-border bg-gradient-to-br from-card to-blue-950/10 hover:border-blue-400/50 hover:shadow-lg hover:shadow-blue-500/5'
-          }`}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragging(false);
-            if (e.dataTransfer.files.length > 0) {
-              batchMode ? handleBatchUpload(e.dataTransfer.files) : handleFiles(e.dataTransfer.files);
+  return (
+    <>
+      <Toolbar>
+        <ToolbarHeading
+          title={currentBarcode}
+          description={`${doneCount}/8 มุม${allDone ? ' — ครบแล้ว!' : ''}`}
+        />
+        <ToolbarActions>
+          <span className="flex items-center gap-1.5 text-xs mr-2">
+            {isConnected
+              ? <><Wifi className="size-3 text-emerald-500" /><span className="text-emerald-500">เชื่อมต่อ</span></>
+              : <><WifiOff className="size-3 text-red-500" /><span className="text-red-500">ขาดการเชื่อมต่อ</span></>
             }
-          }}
-        >
-          {lastPreviewUrl ? (
-            <img src={lastPreviewUrl} alt="preview" className="max-w-full max-h-full object-contain p-4" />
-          ) : (
-            <div className="text-center p-8">
-              <div className={`mx-auto mb-6 w-20 h-20 rounded-3xl flex items-center justify-center ${
-                isDragging ? 'bg-primary/20 scale-110' : 'bg-muted'
-              } transition-all duration-300`}>
-                <Upload className={`w-10 h-10 ${isDragging ? 'text-primary animate-bounce' : 'text-muted-foreground/40'}`} />
-              </div>
-              <p className="text-foreground font-medium text-lg">
-                {!currentBarcode ? 'สแกนบาร์โค้ดก่อน' :
-                 batchMode ? 'ลากรูปหลายมุมมาวางพร้อมกัน' :
-                 !currentAngle ? 'เลือกมุมถ่ายก่อน' :
-                 'ลากรูปมาวางที่นี่'}
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                {batchMode && currentBarcode
-                  ? 'ระบบจะ detect มุมจากชื่อไฟล์ (front, back, left, right...) · JPG, PNG, RAW'
-                  : currentBarcode && currentAngle ? 'หรือคลิกเพื่อเลือกไฟล์ · JPG, PNG, CR2, CR3, ARW, NEF, TIF' : ''}
-              </p>
-            </div>
+          </span>
+          {allDone && (
+            <Button variant="outline" onClick={() => navigate('/360')}>
+              <RotateCw className="size-4" /> ทำ 360°
+            </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => { setBarcode(''); setActiveAngle(null); }}>
+            เปลี่ยน barcode
+          </Button>
+        </ToolbarActions>
+      </Toolbar>
 
-          <input
-            type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
-            className="absolute inset-0 opacity-0 cursor-pointer"
-            onChange={(e) => {
-              if (!e.target.files) return;
-              batchMode ? handleBatchUpload(e.target.files) : handleFiles(e.target.files);
-            }}
-            disabled={!currentBarcode || (!currentAngle && !batchMode)}
-          />
+      <div className="container pb-7 space-y-5">
+        {/* 8-Angle Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {GUIDED_ANGLES.map((angle) => {
+            const existing = photosByAngle.get(angle.id);
+            const isActive = activeAngle === angle.id;
+            const isDone = !!existing;
 
-          {uploading && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            return (
+              <button
+                key={angle.id}
+                onClick={() => !isDone && setActiveAngle(angle.id)}
+                className={`relative rounded-xl border-2 overflow-hidden transition-all ${
+                  isActive
+                    ? `border-${angle.color}-500 ring-4 ring-${angle.color}-500/20 shadow-lg`
+                    : isDone
+                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                    : 'border-border hover:border-muted-foreground/30'
+                }`}
+              >
+                <div className="aspect-square bg-muted relative flex items-center justify-center">
+                  {existing ? (
+                    <>
+                      <img src={existing.thumbnail_url} alt={angle.label}
+                        className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 size-6 rounded-full bg-emerald-500 flex items-center justify-center shadow">
+                        <Check className="size-3.5 text-white" />
+                      </div>
+                      {existing.quality_issues && existing.quality_issues.length > 0 && (
+                        <div className="absolute top-2 left-2 size-6 rounded-full bg-amber-500 flex items-center justify-center shadow">
+                          <AlertTriangle className="size-3.5 text-white" />
+                        </div>
+                      )}
+                    </>
+                  ) : isActive ? (
+                    <div className="text-center p-4">
+                      <Camera className={`size-8 text-${angle.color}-500 mx-auto mb-2`} />
+                      <p className="text-xs text-muted-foreground">ลากรูปมาวาง</p>
+                    </div>
+                  ) : (
+                    <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                      <Camera className="size-5 text-muted-foreground/30" />
+                    </div>
+                  )}
+                </div>
+                <div className={`px-3 py-2 text-center ${
+                  isDone ? 'bg-emerald-500/10' : isActive ? `bg-${angle.color}-500/10` : 'bg-card'
+                }`}>
+                  <p className={`text-xs font-medium ${
+                    isDone ? 'text-emerald-600 dark:text-emerald-400' : isActive ? `text-${angle.color}-500` : 'text-muted-foreground'
+                  }`}>
+                    {isDone ? '✓ ' : ''}{angle.label}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active Angle Dropzone */}
+        {activeAngle && !allDone && (
+          <div
+            className={`rounded-2xl border-2 border-dashed p-12 text-center transition-all ${
+              isDragging ? 'border-primary bg-primary/5 scale-[0.99]'
+              : uploading ? 'border-amber-400 bg-amber-400/5'
+              : 'border-border hover:border-primary/40'
+            }`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleUpload(e.dataTransfer.files); }}
+          >
+            {uploading ? (
+              <div className="flex items-center justify-center gap-3">
+                <Loader2 className="size-6 animate-spin text-primary" />
                 <span className="text-foreground font-medium">กำลังอัปโหลด...</span>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Activity Log */}
-        <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-card to-amber-950/10 overflow-hidden">
-          <div className="px-5 py-3 border-b border-border flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">บันทึกกิจกรรม</h3>
-            <span className="flex items-center gap-1.5 text-xs">
-              {isConnected
-                ? <><Wifi className="w-3 h-3 text-emerald-500" /><span className="text-emerald-500">เชื่อมต่อ</span></>
-                : <><WifiOff className="w-3 h-3 text-red-500" /><span className="text-red-500">ขาดการเชื่อมต่อ</span></>
-              }
-            </span>
-          </div>
-          <div ref={logRef} className="h-36 overflow-y-auto px-5 py-3 space-y-1.5">
-            {activityLog.length === 0 ? (
-              <p className="text-muted-foreground/40 py-6 text-center text-sm">ยังไม่มีกิจกรรม</p>
             ) : (
-              activityLog.map((entry, i) => (
-                <div key={i} className={`flex gap-3 items-start text-sm rounded-lg px-3 py-2 ${
-                  entry.type === 'success' ? 'bg-emerald-500/5 text-emerald-500' :
-                  entry.type === 'error' ? 'bg-red-500/5 text-red-500' :
-                  entry.type === 'warning' ? 'bg-amber-500/5 text-amber-500' :
-                  'bg-muted/30 text-muted-foreground'
-                }`}>
-                  <span className="text-[11px] text-muted-foreground shrink-0 font-mono mt-0.5">{entry.time}</span>
-                  <span>{entry.msg}</span>
+              <>
+                <div className={`size-16 rounded-2xl bg-${activeAngleConfig?.color}-500/10 flex items-center justify-center mx-auto mb-4`}>
+                  <Upload className={`size-7 ${isDragging ? 'text-primary animate-bounce' : `text-${activeAngleConfig?.color}-500`}`} />
                 </div>
-              ))
+                <p className="text-lg font-semibold text-foreground">
+                  ถ่าย{activeAngleConfig?.label}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  ลากรูปมาวางที่นี่ หรือคลิกเลือกไฟล์
+                </p>
+                <label className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium cursor-pointer hover:bg-primary/90 transition-colors shadow-sm">
+                  เลือกไฟล์
+                  <input type="file" multiple accept="image/*,.cr2,.cr3,.arw,.nef,.tif,.tiff"
+                    className="hidden" onChange={(e) => e.target.files && handleUpload(e.target.files)} />
+                </label>
+              </>
             )}
           </div>
-        </div>
+        )}
+
+        {/* All Done — Next Actions */}
+        {allDone && (
+          <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-50/50 to-card dark:from-card dark:to-emerald-950/10 p-8 text-center">
+            <div className="size-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+              <Check className="size-8 text-emerald-500" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">ครบ 8 มุมแล้ว!</h2>
+            <p className="text-sm text-muted-foreground mt-1">{currentBarcode} — ถ่ายรูปครบทุกมุมแล้ว</p>
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <Button onClick={() => navigate('/360')}>
+                <RotateCw className="size-4" /> ทำ 360° ต่อ
+              </Button>
+              <Button variant="outline" onClick={() => {
+                setBarcode('');
+                setActiveAngle(null);
+                navigate('/');
+              }}>
+                สินค้าถัดไป <ArrowRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </>
   );
 }

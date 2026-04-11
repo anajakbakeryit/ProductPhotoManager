@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { Save, Upload } from 'lucide-react';
 import { UsersSection } from './users-section';
+import { EmployeeDashboard } from './employee-dashboard';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -231,6 +232,9 @@ export function SettingsPage() {
           </Select>
         </div>
       </section>
+
+      {/* Employee Dashboard */}
+      <EmployeeDashboard />
 
       {/* Users */}
       <UsersSection />
