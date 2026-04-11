@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import {
   Upload, ScanBarcode, Loader2, Camera, Check, RotateCw,
-  ArrowRight, AlertTriangle, Wifi, WifiOff, ChevronLeft,
+  ArrowRight, AlertTriangle, Wifi, WifiOff, ChevronLeft, Video,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useShootingStore } from '@/store/shootingStore';
@@ -139,6 +139,42 @@ export function ShootingPage() {
     }
   };
 
+  // Video → 4 angles (front, right, back, left)
+  const handleVideoUpload = async (file: File) => {
+    if (!currentBarcode) return;
+    setUploading(true);
+    toast.info('กำลังตัดเฟรมจากวิดีโอ 360°...');
+    const fd = new FormData();
+    fd.append('barcode', currentBarcode);
+    fd.append('file', file);
+    try {
+      const res = await api.upload<{
+        extracted: number;
+        angles: string[];
+        message: string;
+      }>('/api/spin360/video-to-angles', fd);
+      toast.success(`ตัดได้ ${res.extracted} มุม: ${res.angles.join(', ')}`);
+      await refetchPhotos();
+      queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
+
+      // Check if all done now
+      const remaining = GUIDED_ANGLES.filter(
+        (a) => !photosByAngle.has(a.id) && !res.angles.includes(a.id)
+      );
+      if (remaining.length > 0) {
+        setActiveAngle(remaining[0].id);
+        toast.info(`เหลืออีก ${remaining.length} มุม: ${remaining.map((a) => a.label).join(', ')}`);
+      } else {
+        setActiveAngle(null);
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'ตัดเฟรมไม่สำเร็จ');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // No barcode selected — show scan screen
   if (!currentBarcode) {
     return (
@@ -186,6 +222,12 @@ export function ShootingPage() {
               : <><WifiOff className="size-3 text-red-500" /><span className="text-red-500">ขาดการเชื่อมต่อ</span></>
             }
           </span>
+          <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm font-medium cursor-pointer hover:bg-muted transition-colors">
+            <Video className="size-4 text-amber-500" />
+            วิดีโอ → 4 มุม
+            <input type="file" accept="video/*" className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])} />
+          </label>
           {allDone && (
             <Button variant="outline" onClick={() => navigate('/360')}>
               <RotateCw className="size-4" /> ทำ 360°
