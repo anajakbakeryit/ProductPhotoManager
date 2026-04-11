@@ -7,7 +7,8 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_db, get_current_user
-from backend.api.models.db import Product, User
+from backend.api.models.db import Product, Photo, User
+from backend.api.services.storage import get_storage
 
 router = APIRouter()
 
@@ -118,8 +119,38 @@ async def _list_products_impl(db, search, category, status, priority, page, limi
     result = await db.execute(query)
     products = result.scalars().all()
 
+    # Enrich with thumbnail, angle progress, last activity
+    storage = get_storage()
+    enriched = []
+    for p in products:
+        out = ProductOut.from_model(p).model_dump()
+
+        # Get angle coverage + thumbnail
+        photo_result = await db.execute(
+            select(Photo.angle, Photo.original_key, Photo.created_at, Photo.uploaded_by)
+            .where(Photo.barcode == p.barcode, Photo.is_deleted == False)
+            .order_by(Photo.created_at.desc())
+        )
+        photos = photo_result.all()
+        angles_done = list(set(r.angle for r in photos))
+        out["angles_done"] = angles_done
+        out["angles_total"] = 8
+
+        # Thumbnail (first front photo, or first photo)
+        front = next((r for r in photos if r.angle == "front"), None)
+        first = front or (photos[0] if photos else None)
+        if first:
+            key = first.original_key.replace("/OG/", "/S/").replace("_OG.", "_S.")
+            out["thumbnail_url"] = storage.get_url(key)
+            out["last_activity"] = first.created_at.isoformat() if first.created_at else None
+        else:
+            out["thumbnail_url"] = None
+            out["last_activity"] = None
+
+        enriched.append(out)
+
     return {
-        "data": [ProductOut.from_model(p).model_dump() for p in products],
+        "data": enriched,
         "total": total,
         "page": page,
         "limit": limit,

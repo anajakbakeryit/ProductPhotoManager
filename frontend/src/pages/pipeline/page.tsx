@@ -31,6 +31,10 @@ interface Product {
   photo_status: string;
   has_spin360: boolean;
   quality_score: number | null;
+  thumbnail_url: string | null;
+  angles_done: string[];
+  angles_total: number;
+  last_activity: string | null;
   created_at: string;
 }
 
@@ -46,6 +50,17 @@ const PRIORITY_COLORS = {
   normal: 'bg-blue-500',
   low: 'bg-muted-foreground',
 };
+
+function getTimeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'เมื่อกี้';
+  if (mins < 60) return `${mins} นาทีที่แล้ว`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ชม. ที่แล้ว`;
+  const days = Math.floor(hrs / 24);
+  return `${days} วันที่แล้ว`;
+}
 
 export function PipelinePage() {
   const navigate = useNavigate();
@@ -167,12 +182,25 @@ export function PipelinePage() {
                 : product.photo_status === 'spin360' ? 'ทำ 360°'
                 : 'ดูรูป';
 
+              const anglesDone = product.angles_done?.length || 0;
+              const anglesTotal = product.angles_total || 8;
+              const progress = Math.round((anglesDone / anglesTotal) * 100);
+              const timeAgo = product.last_activity ? getTimeAgo(product.last_activity) : null;
+
               return (
                 <div key={product.id}
                   className={`group rounded-xl border ${cfg.border} bg-card overflow-hidden hover:shadow-md transition-all`}>
                   <div className="p-4 flex items-center gap-4">
-                    {/* Priority dot */}
-                    <div className={`size-2 rounded-full shrink-0 ${PRIORITY_COLORS[product.priority as keyof typeof PRIORITY_COLORS] || PRIORITY_COLORS.normal}`} />
+                    {/* Thumbnail */}
+                    <div className="size-14 rounded-lg bg-muted overflow-hidden shrink-0 border border-border">
+                      {product.thumbnail_url ? (
+                        <img src={product.thumbnail_url} alt={product.barcode} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Package className="size-5 text-muted-foreground/30" />
+                        </div>
+                      )}
+                    </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
@@ -186,13 +214,10 @@ export function PipelinePage() {
                           <span className="text-sm text-muted-foreground truncate">{product.name}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
+                      <div className="flex items-center gap-3 mt-1.5">
                         <span className={`inline-flex items-center gap-1 text-2xs font-medium ${cfg.color}`}>
                           <cfg.icon className="size-3" />
                           {cfg.label}
-                        </span>
-                        <span className="text-2xs text-muted-foreground">
-                          {product.photo_count} รูป
                         </span>
                         {product.quality_score && (
                           <span className="inline-flex items-center gap-0.5 text-2xs text-amber-500">
@@ -200,9 +225,21 @@ export function PipelinePage() {
                             {product.quality_score}
                           </span>
                         )}
-                        {product.color && (
-                          <span className="text-2xs text-muted-foreground">{product.color}</span>
+                        {timeAgo && (
+                          <span className="text-2xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="size-3" />
+                            {timeAgo}
+                          </span>
                         )}
+                      </div>
+                      {/* Progress bar */}
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${
+                            progress === 100 ? 'bg-emerald-500' : progress > 0 ? 'bg-primary' : 'bg-transparent'
+                          }`} style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="text-2xs text-muted-foreground font-mono shrink-0">{anglesDone}/{anglesTotal}</span>
                       </div>
                     </div>
 
