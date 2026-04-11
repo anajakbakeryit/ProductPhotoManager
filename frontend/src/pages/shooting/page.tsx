@@ -28,13 +28,14 @@ const GUIDED_ANGLES = [
   { id: 'package', label: 'แพ็คเกจ', border: 'border-fuchsia-500', ring: 'ring-fuchsia-500/20', text: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10' },
 ];
 
-type ShootingStep = 'scan' | 'method' | 'shooting' | 'done';
+type ShootingStep = 'scan' | 'method' | 'shooting' | 'spin360' | 'done';
 
 const STEPS: { key: ShootingStep; label: string; num: number }[] = [
-  { key: 'scan', label: 'สแกนบาร์โค้ด', num: 1 },
+  { key: 'scan', label: 'สแกน', num: 1 },
   { key: 'method', label: 'เลือกวิธี', num: 2 },
-  { key: 'shooting', label: 'ถ่ายรูป', num: 3 },
-  { key: 'done', label: 'เสร็จสมบูรณ์', num: 4 },
+  { key: 'shooting', label: 'ถ่าย 8 มุม', num: 3 },
+  { key: 'spin360', label: '360°', num: 4 },
+  { key: 'done', label: 'เสร็จ', num: 5 },
 ];
 
 interface ExistingPhoto {
@@ -111,7 +112,7 @@ export function ShootingPage() {
   // Auto-select first empty angle when entering shooting step
   useEffect(() => {
     if (step !== 'shooting' || !currentBarcode) return;
-    if (allDone) { setStep('done'); return; }
+    if (allDone) { setStep('spin360'); return; }
     const firstEmpty = GUIDED_ANGLES.find((a) => !photosByAngle.has(a.id));
     if (firstEmpty && !activeAngle) setActiveAngle(firstEmpty.id);
   }, [step, currentBarcode, allDone]);
@@ -172,9 +173,9 @@ export function ShootingPage() {
       if (nextEmpty) {
         setActiveAngle(nextEmpty.id);
       } else {
-        setStep('done');
-        confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
-        toast.success('🎉 ครบ 8 มุมแล้ว!');
+        setStep('spin360');
+        confetti({ particleCount: 100, spread: 60, origin: { y: 0.7 } });
+        toast.success('ครบ 8 มุมแล้ว — ต่อไปทำ 360°');
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ');
@@ -204,8 +205,9 @@ export function ShootingPage() {
         setActiveAngle(remaining[0].id);
         toast.info(`เหลือถ่ายเพิ่ม ${remaining.length} มุม`);
       } else {
-        setStep('done');
-        confetti({ particleCount: 150, spread: 80, origin: { y: 0.7 } });
+        setStep('spin360');
+        confetti({ particleCount: 100, spread: 60, origin: { y: 0.7 } });
+        toast.success('ครบ 8 มุมแล้ว — ต่อไปทำ 360°');
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'ตัดเฟรมไม่สำเร็จ');
@@ -413,7 +415,120 @@ export function ShootingPage() {
           </div>
         )}
 
-        {/* ── Step 4: Done ── */}
+        {/* ── Step 4: 360° ── */}
+        {step === 'spin360' && (
+          <div className="space-y-5">
+            {/* 8-angle preview */}
+            <div className="grid grid-cols-4 gap-2 max-w-md mx-auto">
+              {GUIDED_ANGLES.map((a) => {
+                const photo = photosByAngle.get(a.id);
+                return (
+                  <div key={a.id} className="rounded-lg border border-emerald-500/20 overflow-hidden">
+                    {photo ? (
+                      <img src={photo.thumbnail_url} alt={a.label} className="w-full aspect-square object-cover" />
+                    ) : (
+                      <div className="w-full aspect-square bg-muted" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 360 Upload */}
+            <div className="rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-50/30 to-card dark:from-card dark:to-amber-950/10 p-8">
+              <div className="text-center mb-6">
+                <div className="size-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                  <RotateCw className="size-8 text-amber-500" />
+                </div>
+                <h2 className="text-xl font-bold text-foreground">ถ่ายวิดีโอ 360°</h2>
+                <p className="text-sm text-muted-foreground mt-1">หมุนสินค้ารอบตัว 1 รอบ แล้วอัปโหลดวิดีโอ</p>
+              </div>
+
+              <div
+                className={`rounded-xl border-2 border-dashed p-10 text-center transition-all ${
+                  uploading ? 'border-amber-400 bg-amber-400/5' : 'border-border hover:border-amber-500/40'
+                }`}
+              >
+                {uploading ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <Loader2 className="size-6 animate-spin text-amber-500" />
+                    <span className="text-foreground font-medium">กำลังอัปโหลดและประมวลผล...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="size-10 text-amber-500/50 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">ลากวิดีโอมาวาง หรือคลิกเลือกไฟล์</p>
+                    <label className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-medium cursor-pointer hover:bg-amber-600 shadow-sm">
+                      <Video className="size-4" /> เลือกวิดีโอ
+                      <input type="file" accept="video/*" className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !currentBarcode) return;
+                          setUploading(true);
+                          toast.info('กำลังอัปโหลด 360°...');
+                          const fd = new FormData();
+                          fd.append('barcode', currentBarcode);
+                          fd.append('file', file);
+                          try {
+                            await api.upload('/api/spin360/video', fd);
+                            toast.success('360° สำเร็จ!');
+                            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                            setStep('done');
+                            queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
+                          } catch (err: unknown) {
+                            toast.error(err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ');
+                          } finally {
+                            setUploading(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              <p className="text-center text-2xs text-muted-foreground mt-4">
+                รองรับ MP4, MOV, AVI — สูงสุด 500 MB
+              </p>
+            </div>
+
+            {/* Also allow frame upload */}
+            <div className="rounded-xl border border-border p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <Upload className="size-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">หรืออัปโหลดเฟรม 360°</span>
+              </div>
+              <label className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-border text-sm text-muted-foreground cursor-pointer hover:border-primary hover:text-primary transition-colors">
+                เลือกรูปเฟรม 360° (เรียงตามชื่อไฟล์)
+                <input type="file" multiple accept="image/*" className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || !currentBarcode) return;
+                    setUploading(true);
+                    const fd = new FormData();
+                    fd.append('barcode', currentBarcode);
+                    for (const f of Array.from(files).sort((a, b) => a.name.localeCompare(b.name))) {
+                      fd.append('files', f);
+                    }
+                    try {
+                      await api.upload('/api/spin360/frames', fd);
+                      toast.success('360° สำเร็จ!');
+                      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+                      setStep('done');
+                      queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
+                    } catch (err: unknown) {
+                      toast.error(err instanceof Error ? err.message : 'อัปโหลดไม่สำเร็จ');
+                    } finally {
+                      setUploading(false);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 5: Done ── */}
         {step === 'done' && (
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="max-w-md w-full text-center space-y-6">
@@ -421,22 +536,19 @@ export function ShootingPage() {
                 <Check className="size-10 text-emerald-500" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-foreground">ครบ 8 มุมแล้ว!</h2>
-                <p className="text-sm text-muted-foreground mt-1">{currentBarcode}</p>
+                <h2 className="text-xl font-bold text-foreground">เสร็จสมบูรณ์!</h2>
+                <p className="text-sm text-muted-foreground mt-1">{currentBarcode} — ถ่ายรูป 8 มุม + 360° เรียบร้อย</p>
               </div>
 
-              {/* Thumbnail preview */}
               <div className="grid grid-cols-4 gap-2 max-w-xs mx-auto">
                 {GUIDED_ANGLES.map((a) => {
                   const photo = photosByAngle.get(a.id);
                   return (
-                    <div key={a.id} className="rounded-lg border border-border overflow-hidden">
+                    <div key={a.id} className="rounded-lg border border-emerald-500/20 overflow-hidden">
                       {photo ? (
                         <img src={photo.thumbnail_url} alt={a.label} className="w-full aspect-square object-cover" />
                       ) : (
-                        <div className="w-full aspect-square bg-muted flex items-center justify-center">
-                          <Camera className="size-4 text-muted-foreground/30" />
-                        </div>
+                        <div className="w-full aspect-square bg-muted" />
                       )}
                     </div>
                   );
@@ -444,10 +556,10 @@ export function ShootingPage() {
               </div>
 
               <div className="flex items-center justify-center gap-3">
-                <Button onClick={() => navigate('/360')}>
-                  <RotateCw className="size-4" /> ทำ 360° ต่อ
+                <Button variant="outline" onClick={() => navigate(`/gallery?search=${currentBarcode}`)}>
+                  ดูรูปทั้งหมด
                 </Button>
-                <Button variant="outline" onClick={() => {
+                <Button onClick={() => {
                   setBarcode('');
                   setStep('scan');
                   setActiveAngle(null);
