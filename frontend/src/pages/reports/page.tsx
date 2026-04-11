@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Download, FileText, Package, Image, BarChart3, ClipboardCheck, Check, X as XIcon, Store, ShoppingBag, Facebook } from 'lucide-react';
+import { Download, FileText, Package, Image, BarChart3, ClipboardCheck, Check, X as XIcon, Store, ShoppingBag } from 'lucide-react';
+import { RiFacebookFill } from '@remixicon/react';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
 
@@ -198,7 +199,7 @@ export function ReportsPage() {
             {[
               { name: 'Shopee', icon: ShoppingBag, color: 'orange', spec: 'JPG 800×800, พื้นหลังขาว, max 2MB', size: 'M', variant: 'cutout' },
               { name: 'Lazada', icon: Store, color: 'blue', spec: 'JPG 1000×1000, พื้นหลังขาว, max 3MB', size: 'L', variant: 'cutout' },
-              { name: 'Facebook', icon: Facebook, color: 'sky', spec: 'JPG 1200×1200, ต้นฉบับ + ลายน้ำ', size: 'L', variant: 'watermarked_original' },
+              { name: 'Facebook', icon: RiFacebookFill, color: 'sky', spec: 'JPG 1200×1200, ต้นฉบับ + ลายน้ำ', size: 'L', variant: 'watermarked_original' },
             ].map((mp) => (
               <button
                 key={mp.name}
