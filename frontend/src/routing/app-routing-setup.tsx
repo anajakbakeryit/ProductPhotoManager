@@ -2,6 +2,7 @@ import { Route, Routes, Navigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout9 } from '@/components/layouts/layout-9';
 import { LoginPage } from '@/pages/login/page';
+import { PipelinePage } from '@/pages/pipeline/page';
 import { ShootingPage } from '@/pages/shooting/page';
 import { GalleryPage } from '@/pages/gallery/page';
 import { SettingsPage } from '@/pages/settings/page';
@@ -23,12 +24,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Use raw fetch (not api.ts) to avoid 401 redirect loop
     fetch('/api/health')
       .then((r) => r.json())
       .then((data) => {
         if (data.dev_mode) {
-          // Dev mode: auto-set user, no login needed
           useAuthStore.setState({
             user: { id: 1, username: 'admin', display_name: 'ผู้ดูแลระบบ', role: 'admin' },
           });
@@ -63,13 +62,17 @@ export function AppRoutingSetup() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<DashboardPage />} />
-        <Route path="/shooting" element={<ShootingPage />} />
+          {/* Main 4 pages */}
+          <Route path="/" element={<PipelinePage />} />
+          <Route path="/shooting" element={<ShootingPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+
+          {/* Secondary pages (accessible but not in main nav) */}
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/360" element={<Spin360Page />} />
           <Route path="/sessions" element={<SessionsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -17,6 +17,8 @@ from backend.api.deps import get_db, get_current_user
 from backend.api.models.db import Product, Photo, ActivityLog, User
 from backend.api.services.storage import get_storage
 from backend.api.services.angle_detector import detect_angle_from_filename, detect_angles_batch
+from backend.api.services.quality_check import check_quality
+from backend.api.services.product_status import update_product_status
 from utils.sanitize import sanitize_barcode
 from utils.color_profile import to_srgb, save_multi_resolution
 
@@ -110,6 +112,10 @@ async def upload_photos(
 
             original_key = f"{orig_dir}/OG/{base_name}_OG.jpg"
 
+            # AI Quality Check
+            qc = check_quality(content)
+            logger.info(f"Quality check {filename}: score={qc['score']}, issues={qc['issues']}")
+
             # Create DB record
             photo = Photo(
                 product_id=product.id,
@@ -124,6 +130,8 @@ async def upload_photos(
                 file_size=len(content),
                 uploaded_by=user.id,
                 session_id=session_id,
+                quality_score=qc["score"],
+                quality_issues=qc["issues"] if qc["issues"] else None,
             )
             db.add(photo)
             await db.flush()
@@ -143,14 +151,16 @@ async def upload_photos(
                 "width": width,
                 "height": height,
                 "preview_url": storage.get_url(f"{orig_dir}/S/{base_name}_S.jpg"),
+                "quality": qc,
             })
 
         finally:
             os.unlink(tmp_path)
 
-    # Update product photo count
-    product.photo_count = (product.photo_count or 0) + len(uploaded)
     await db.commit()
+
+    # Auto-update product status (pending → shooting → spin360 → completed)
+    await update_product_status(db, barcode)
 
     # Enqueue background processing for each photo (cutout + watermark)
     from backend.api.services.pipeline import enqueue_processing

@@ -36,6 +36,12 @@ class Product(Base):
     category = Column(String(255), default="")
     note = Column(Text, default="")
     photo_count = Column(Integer, default=0)
+    color = Column(String(50), default="")           # สีสินค้า
+    priority = Column(String(10), default="normal")  # urgent | normal | low
+    photo_status = Column(String(20), default="pending", index=True)  # pending | shooting | spin360 | completed
+    has_spin360 = Column(Boolean, default=False)
+    quality_score = Column(Integer)                   # 1-5 stars
+    assigned_to = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -64,6 +70,8 @@ class Photo(Base):
     height = Column(Integer)
     file_size = Column(BigInteger)
     tags = Column(JSON, default=[])
+    quality_score = Column(Integer)     # AI quality: 1-5
+    quality_issues = Column(JSON)       # ["blurry", "dark", "no_product"]
 
     # Relations
     session_id = Column(Integer, ForeignKey("sessions.id"))

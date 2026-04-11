@@ -32,6 +32,11 @@ class ProductOut(BaseModel):
     category: str
     note: str
     photo_count: int
+    color: str
+    priority: str
+    photo_status: str
+    has_spin360: bool
+    quality_score: int | None
     created_at: str | None = None
 
     model_config = {"from_attributes": True}
@@ -42,6 +47,10 @@ class ProductOut(BaseModel):
             id=product.id, barcode=product.barcode,
             name=product.name or "", category=product.category or "",
             note=product.note or "", photo_count=product.photo_count or 0,
+            color=product.color or "", priority=product.priority or "normal",
+            photo_status=product.photo_status or "pending",
+            has_spin360=product.has_spin360 or False,
+            quality_score=product.quality_score,
             created_at=product.created_at.isoformat() if product.created_at else None,
         )
 
@@ -50,6 +59,8 @@ class ProductOut(BaseModel):
 async def list_products(
     search: str = Query("", description="ค้นหาจากบาร์โค้ด/ชื่อ"),
     category: str = Query("", description="กรองตาม category"),
+    status: str = Query("", description="กรองตาม photo_status"),
+    priority: str = Query("", description="กรองตาม priority"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -58,13 +69,33 @@ async def list_products(
     import logging
     logger = logging.getLogger(__name__)
     try:
-        return await _list_products_impl(db, search, category, page, limit)
+        return await _list_products_impl(db, search, category, status, priority, page, limit)
     except Exception as e:
         logger.error(f"list_products error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _list_products_impl(db, search, category, page, limit):
+@router.get("/pipeline-stats")
+async def pipeline_stats(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Get counts per photo_status for pipeline dashboard."""
+    result = await db.execute(
+        select(Product.photo_status, func.count(Product.id))
+        .group_by(Product.photo_status)
+    )
+    counts = dict(result.all())
+    return {
+        "pending": counts.get("pending", 0),
+        "shooting": counts.get("shooting", 0),
+        "spin360": counts.get("spin360", 0),
+        "completed": counts.get("completed", 0),
+        "total": sum(counts.values()),
+    }
+
+
+async def _list_products_impl(db, search, category, status, priority, page, limit):
     query = select(Product)
     if search:
         query = query.where(
@@ -72,6 +103,10 @@ async def _list_products_impl(db, search, category, page, limit):
         )
     if category:
         query = query.where(Product.category == category)
+    if status:
+        query = query.where(Product.photo_status == status)
+    if priority:
+        query = query.where(Product.priority == priority)
 
     # Count
     count_q = select(func.count()).select_from(query.subquery())
