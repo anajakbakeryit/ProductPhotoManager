@@ -92,6 +92,10 @@ export function ShootingPage() {
   const [activeAngle, setActiveAngle] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [productForm, setProductForm] = useState<{
+    name: string; color: string; category: string; note: string;
+  } | null>(null);
+  const [scannedBarcode, setScannedBarcode] = useState('');
   const barcodeRef = useRef<HTMLInputElement>(null);
 
   // Fetch existing photos
@@ -132,16 +136,35 @@ export function ShootingPage() {
     const raw = barcodeInput.trim();
     if (!raw) return;
     try {
-      try { await api.get(`/api/products/${raw}`); }
-      catch { await api.post('/api/products', { barcode: raw }); }
-      setBarcode(raw);
+      let product;
+      try {
+        product = await api.get<{ barcode: string; name: string; category: string; note: string; color?: string }>(`/api/products/${raw}`);
+      } catch {
+        product = await api.post<{ barcode: string; name: string; category: string; note: string }>('/api/products', { barcode: raw });
+      }
+      setScannedBarcode(raw);
+      setProductForm({
+        name: product.name || '',
+        color: (product as Record<string, string>).color || '',
+        category: product.category || '',
+        note: product.note || '',
+      });
       setBarcodeInput('');
-      setActiveAngle(null);
-      setStep('method');
-      refetchPhotos();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
     }
+  };
+
+  const handleProductDetailSubmit = async () => {
+    if (!scannedBarcode || !productForm) return;
+    try {
+      await api.put(`/api/products/${scannedBarcode}`, productForm);
+    } catch { /* ok if fails */ }
+    setBarcode(scannedBarcode);
+    setActiveAngle(null);
+    setStep('method');
+    setProductForm(null);
+    refetchPhotos();
   };
 
   const handleUpload = async (files: FileList | File[]) => {
@@ -246,26 +269,79 @@ export function ShootingPage() {
         {/* Stepper */}
         <StepperBar currentStep={step} />
 
-        {/* ── Step 1: Scan ── */}
+        {/* ── Step 1: Scan + Product Detail ── */}
         {step === 'scan' && (
           <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="max-w-md w-full space-y-6 text-center">
-              <div className="size-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto">
-                <ScanBarcode className="size-10 text-primary" />
+            {!productForm ? (
+              /* Scan barcode */
+              <div className="max-w-md w-full space-y-6 text-center">
+                <div className="size-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto">
+                  <ScanBarcode className="size-10 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">สแกนบาร์โค้ด</h2>
+                  <p className="text-sm text-muted-foreground mt-1">สแกนหรือพิมพ์บาร์โค้ด / รหัสสินค้า</p>
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); handleBarcodeScan(); }} className="flex gap-2">
+                  <Input ref={barcodeRef} value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)}
+                    placeholder="บาร์โค้ด / รหัสสินค้า..." className="font-mono text-lg text-center" autoFocus />
+                  <Button type="submit" disabled={!barcodeInput.trim()}>ถัดไป</Button>
+                </form>
+                <Button variant="outline" onClick={() => navigate('/')}>
+                  <ChevronLeft className="size-4" /> กลับรายการสินค้า
+                </Button>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-foreground">สแกนบาร์โค้ด</h2>
-                <p className="text-sm text-muted-foreground mt-1">สแกนหรือพิมพ์บาร์โค้ดเพื่อเริ่มถ่ายรูป</p>
+            ) : (
+              /* Product detail form */
+              <div className="max-w-lg w-full space-y-6">
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-foreground">รายละเอียดสินค้า</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    บาร์โค้ด: <span className="font-mono font-bold text-primary">{scannedBarcode}</span>
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">ชื่อสินค้า</label>
+                    <Input value={productForm.name}
+                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                      placeholder="เช่น iPhone 16 Pro 256GB" autoFocus />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">สีเครื่อง</label>
+                      <Input value={productForm.color}
+                        onChange={(e) => setProductForm({ ...productForm, color: e.target.value })}
+                        placeholder="เช่น Titanium Blue" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">หมวดหมู่</label>
+                      <Input value={productForm.category}
+                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                        placeholder="เช่น iPhone, Samsung" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-foreground">โน้ต / สภาพเครื่อง</label>
+                    <Input value={productForm.note}
+                      onChange={(e) => setProductForm({ ...productForm, note: e.target.value })}
+                      placeholder="เช่น มีรอยมุมขวาล่าง, เครื่องใหม่" />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-center gap-3">
+                  <Button variant="outline" onClick={() => { setProductForm(null); setScannedBarcode(''); }}>
+                    <ChevronLeft className="size-4" /> สแกนใหม่
+                  </Button>
+                  <Button onClick={handleProductDetailSubmit}>
+                    เริ่มถ่ายรูป <ArrowRight className="size-4" />
+                  </Button>
+                </div>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); handleBarcodeScan(); }} className="flex gap-2">
-                <Input ref={barcodeRef} value={barcodeInput} onChange={(e) => setBarcodeInput(e.target.value)}
-                  placeholder="บาร์โค้ด..." className="font-mono text-lg text-center" autoFocus />
-                <Button type="submit" disabled={!barcodeInput.trim()}>เริ่ม</Button>
-              </form>
-              <Button variant="outline" onClick={() => navigate('/')}>
-                <ChevronLeft className="size-4" /> กลับรายการสินค้า
-              </Button>
-            </div>
+            )}
           </div>
         )}
 

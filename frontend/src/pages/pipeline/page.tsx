@@ -213,6 +213,12 @@ export function PipelinePage() {
                         {product.name && (
                           <span className="text-sm text-muted-foreground truncate">{product.name}</span>
                         )}
+                        {product.color && (
+                          <span className="text-2xs px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{product.color}</span>
+                        )}
+                        {product.category && (
+                          <span className="text-2xs px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">{product.category}</span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 mt-1.5">
                         <span className={`inline-flex items-center gap-1 text-2xs font-medium ${cfg.color}`}>

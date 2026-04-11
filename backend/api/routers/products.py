@@ -24,6 +24,7 @@ class ProductUpdate(BaseModel):
     name: str | None = None
     category: str | None = None
     note: str | None = None
+    color: str | None = None
 
 
 class ProductOut(BaseModel):
@@ -207,6 +208,8 @@ async def update_product(
         product.category = body.category
     if body.note is not None:
         product.note = body.note
+    if body.color is not None:
+        product.color = body.color
 
     await db.commit()
     await db.refresh(product)
