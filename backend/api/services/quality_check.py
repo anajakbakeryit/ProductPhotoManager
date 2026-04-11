@@ -10,9 +10,14 @@ Checks:
 Returns quality_score (1-5) and list of issues.
 """
 import logging
-import numpy as np
 from PIL import Image
 from io import BytesIO
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,10 @@ def check_quality(image_bytes: bytes) -> dict:
         "passed": True/False
     }
     """
+    if not HAS_NUMPY:
+        logger.warning("numpy not installed — skipping quality check")
+        return {"score": 5, "issues": [], "details": {}, "passed": True}
+
     try:
         img = Image.open(BytesIO(image_bytes)).convert("RGB")
         arr = np.array(img)

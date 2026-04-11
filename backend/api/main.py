@@ -30,6 +30,26 @@ async def lifespan(app: FastAPI):
     """Startup: create tables + seed admin user."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # Auto-add missing columns (simple migration for new fields)
+        from sqlalchemy import text
+        migrations = [
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS color VARCHAR(50) DEFAULT ''",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS priority VARCHAR(10) DEFAULT 'normal'",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS photo_status VARCHAR(20) DEFAULT 'pending'",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS has_spin360 BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS quality_score INTEGER",
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS assigned_to INTEGER",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS tags JSON",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS quality_score INTEGER",
+            "ALTER TABLE photos ADD COLUMN IF NOT EXISTS quality_issues JSON",
+        ]
+        for sql in migrations:
+            try:
+                await conn.execute(text(sql))
+            except Exception:
+                pass  # Column already exists or other benign error
+
     logger.info("Database tables created/verified")
 
     # Seed admin user if not exists

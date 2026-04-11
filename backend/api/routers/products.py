@@ -47,10 +47,11 @@ class ProductOut(BaseModel):
             id=product.id, barcode=product.barcode,
             name=product.name or "", category=product.category or "",
             note=product.note or "", photo_count=product.photo_count or 0,
-            color=product.color or "", priority=product.priority or "normal",
-            photo_status=product.photo_status or "pending",
-            has_spin360=product.has_spin360 or False,
-            quality_score=product.quality_score,
+            color=getattr(product, 'color', '') or "",
+            priority=getattr(product, 'priority', 'normal') or "normal",
+            photo_status=getattr(product, 'photo_status', 'pending') or "pending",
+            has_spin360=getattr(product, 'has_spin360', False) or False,
+            quality_score=getattr(product, 'quality_score', None),
             created_at=product.created_at.isoformat() if product.created_at else None,
         )
 

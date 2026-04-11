@@ -18,14 +18,14 @@ import { Input } from '@/components/ui/input';
 // ── Constants ──────────────────────────────────
 
 const GUIDED_ANGLES = [
-  { id: 'front', label: 'ด้านหน้า', color: 'blue' },
-  { id: 'back', label: 'ด้านหลัง', color: 'violet' },
-  { id: 'left', label: 'ด้านซ้าย', color: 'emerald' },
-  { id: 'right', label: 'ด้านขวา', color: 'orange' },
-  { id: 'top', label: 'ด้านบน', color: 'pink' },
-  { id: 'bottom', label: 'ด้านล่าง', color: 'sky' },
-  { id: 'detail', label: 'รายละเอียด', color: 'lime' },
-  { id: 'package', label: 'แพ็คเกจ', color: 'fuchsia' },
+  { id: 'front', label: 'ด้านหน้า', border: 'border-blue-500', ring: 'ring-blue-500/20', text: 'text-blue-500', bg: 'bg-blue-500/10' },
+  { id: 'back', label: 'ด้านหลัง', border: 'border-violet-500', ring: 'ring-violet-500/20', text: 'text-violet-500', bg: 'bg-violet-500/10' },
+  { id: 'left', label: 'ด้านซ้าย', border: 'border-emerald-500', ring: 'ring-emerald-500/20', text: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+  { id: 'right', label: 'ด้านขวา', border: 'border-orange-500', ring: 'ring-orange-500/20', text: 'text-orange-500', bg: 'bg-orange-500/10' },
+  { id: 'top', label: 'ด้านบน', border: 'border-pink-500', ring: 'ring-pink-500/20', text: 'text-pink-500', bg: 'bg-pink-500/10' },
+  { id: 'bottom', label: 'ด้านล่าง', border: 'border-sky-500', ring: 'ring-sky-500/20', text: 'text-sky-500', bg: 'bg-sky-500/10' },
+  { id: 'detail', label: 'รายละเอียด', border: 'border-lime-500', ring: 'ring-lime-500/20', text: 'text-lime-600', bg: 'bg-lime-500/10' },
+  { id: 'package', label: 'แพ็คเกจ', border: 'border-fuchsia-500', ring: 'ring-fuchsia-500/20', text: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10' },
 ];
 
 type ShootingStep = 'scan' | 'method' | 'shooting' | 'done';
@@ -327,7 +327,7 @@ export function ShootingPage() {
                 return (
                   <button key={angle.id} onClick={() => !isDone && setActiveAngle(angle.id)}
                     className={`relative rounded-xl border-2 overflow-hidden transition-all ${
-                      isActive ? `border-${angle.color}-500 ring-4 ring-${angle.color}-500/20 shadow-lg`
+                      isActive ? `${angle.border} ring-4 ${angle.ring} shadow-lg`
                       : isDone ? 'border-emerald-500/30 bg-emerald-500/5'
                       : 'border-border hover:border-muted-foreground/30'
                     }`}>
@@ -346,7 +346,7 @@ export function ShootingPage() {
                         </>
                       ) : isActive ? (
                         <div className="text-center p-4">
-                          <Camera className={`size-8 text-${angle.color}-500 mx-auto mb-2`} />
+                          <Camera className={`size-8 ${angle.text} mx-auto mb-2`} />
                           <p className="text-xs text-muted-foreground">ลากรูปมาวาง</p>
                         </div>
                       ) : (
@@ -354,10 +354,10 @@ export function ShootingPage() {
                       )}
                     </div>
                     <div className={`px-3 py-2 text-center ${
-                      isDone ? 'bg-emerald-500/10' : isActive ? `bg-${angle.color}-500/10` : 'bg-card'
+                      isDone ? 'bg-emerald-500/10' : isActive ? angle.bg : 'bg-card'
                     }`}>
                       <p className={`text-xs font-medium ${
-                        isDone ? 'text-emerald-600 dark:text-emerald-400' : isActive ? `text-${angle.color}-500` : 'text-muted-foreground'
+                        isDone ? 'text-emerald-600 dark:text-emerald-400' : isActive ? angle.text : 'text-muted-foreground'
                       }`}>
                         {isDone ? '✓ ' : ''}{angle.label}
                       </p>
@@ -386,8 +386,8 @@ export function ShootingPage() {
                   </div>
                 ) : (
                   <>
-                    <div className={`size-16 rounded-2xl bg-${activeAngleConfig?.color}-500/10 flex items-center justify-center mx-auto mb-4`}>
-                      <Upload className={`size-7 ${isDragging ? 'text-primary animate-bounce' : `text-${activeAngleConfig?.color}-500`}`} />
+                    <div className={`size-16 rounded-2xl ${activeAngleConfig?.bg || 'bg-primary/10'} flex items-center justify-center mx-auto mb-4`}>
+                      <Upload className={`size-7 ${isDragging ? 'text-primary animate-bounce' : activeAngleConfig?.text || 'text-primary'}`} />
                     </div>
                     <p className="text-lg font-semibold text-foreground">ถ่าย{activeAngleConfig?.label}</p>
                     <p className="text-sm text-muted-foreground mt-1">ลากรูปมาวางที่นี่ หรือคลิกเลือกไฟล์</p>
