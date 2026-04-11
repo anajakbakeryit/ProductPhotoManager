@@ -1,115 +1,42 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Search, Image as ImageIcon, X, Download, Trash2, Eye, Layers, SplitSquareHorizontal, FileArchive, CheckSquare, Square, Copy, Grid2x2, Grid3x3, LayoutGrid, Tag } from 'lucide-react';
+import { FileArchive, CheckSquare, Grid2x2, Grid3x3, LayoutGrid, Layers } from 'lucide-react';
 import { Toolbar, ToolbarActions, ToolbarHeading } from '@/components/layouts/layout-9/components/toolbar';
 import { Button } from '@/components/ui/button';
-import { usePhotoTagStore, PRESET_TAGS } from '@/store/photoTagStore';
-
-interface Photo {
-  id: number;
-  barcode: string;
-  angle: string;
-  filename: string;
-  status: string;
-  has_cutout: boolean;
-  has_watermark: boolean;
-  thumbnail_url: string;
-  preview_url: string;
-  created_at: string;
-}
-
-function PhotoTagBar({ photoId }: { photoId: number }) {
-  const { getTagsForPhoto, addTag, removeTag, loadTags } = usePhotoTagStore();
-  const tags = getTagsForPhoto(photoId);
-
-  useEffect(() => { loadTags(photoId); }, [photoId, loadTags]);
-  return (
-    <div className="px-5 py-3 border-t border-border/50 flex items-center gap-2 flex-wrap">
-      <Tag className="size-3.5 text-muted-foreground shrink-0" />
-      {tags.map((t) => (
-        <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-2xs font-medium">
-          {t}
-          <button onClick={() => removeTag(photoId, t)} className="hover:text-destructive">
-            <X className="size-3" />
-          </button>
-        </span>
-      ))}
-      {PRESET_TAGS.filter((t) => !tags.includes(t)).map((t) => (
-        <button key={t} onClick={() => addTag(photoId, t)}
-          className="px-2 py-0.5 rounded-md bg-muted text-2xs text-muted-foreground font-medium hover:bg-muted/80 transition-colors">
-          + {t}
-        </button>
-      ))}
-    </div>
-  );
-}
+import type { Photo, PhotoDetail } from './types';
+import { PhotoFilters } from './photo-filters';
+import { PhotoGrid } from './photo-grid';
+import { PhotoLightbox } from './photo-lightbox';
+import { Viewer360Inline } from './viewer-360-inline';
+import { BulkActionBar } from './bulk-action-bar';
 
 export function GalleryPage() {
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+
+  // Filters
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [angle, setAngle] = useState('');
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [variant, setVariant] = useState('original');
-  const [size, setSize] = useState('M');
-  const [compareMode, setCompareMode] = useState(false);
-  const [sliderPos, setSliderPos] = useState(50);
-  const [viewer360Barcode, setViewer360Barcode] = useState<string | null>(null);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // View
   const [gridSize, setGridSize] = useState<'sm' | 'md' | 'lg'>('md');
   const [viewMode, setViewMode] = useState<'grid' | 'product'>('grid');
-  const compareRef = useRef<HTMLDivElement>(null);
 
-  const toggleSelect = (id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
+  // Selection
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const bulkDelete = async () => {
-    if (!selectedIds.size) return;
-    const count = selectedIds.size;
-    for (const id of selectedIds) {
-      try { await api.delete(`/api/photos/${id}`); } catch { /* skip */ }
-    }
-    toast.success(`ลบ ${count} รูปแล้ว`);
-    setSelectedIds(new Set());
-    setSelectMode(false);
-    queryClient.invalidateQueries({ queryKey: ['gallery'] });
-  };
+  // Lightbox
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const bulkDownload = async () => {
-    if (!selectedIds.size) return;
-    toast.info(`กำลังสร้าง ZIP (${selectedIds.size} รูป)...`);
-    try {
-      const blob = await api.postBlob('/api/photos/download-zip', {
-        photo_ids: Array.from(selectedIds), variant: 'original', size: 'OG',
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'photos.zip'; a.click();
-      URL.revokeObjectURL(url);
-      toast.success('ดาวน์โหลด ZIP สำเร็จ');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'ดาวน์โหลดไม่สำเร็จ');
-    }
-  };
+  // 360 viewer
+  const [viewer360Barcode, setViewer360Barcode] = useState<string | null>(null);
 
-  const handleSliderDrag = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!compareRef.current) return;
-    const rect = compareRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    setSliderPos((x / rect.width) * 100);
-  }, []);
-  const queryClient = useQueryClient();
-
+  // Data
   const { data, isLoading } = useQuery({
     queryKey: ['gallery', search, angle, page],
     queryFn: () => {
@@ -124,11 +51,7 @@ export function GalleryPage() {
 
   const { data: detail } = useQuery({
     queryKey: ['photo-detail', selectedId],
-    queryFn: () => api.get<{
-      id: number; barcode: string; angle: string; filename: string;
-      width: number; height: number; status: string;
-      urls: Record<string, Record<string, string>>;
-    }>(`/api/photos/${selectedId}`),
+    queryFn: () => api.get<PhotoDetail>(`/api/photos/${selectedId}`),
     enabled: !!selectedId,
   });
 
@@ -145,64 +68,66 @@ export function GalleryPage() {
   const photos = data?.data || [];
   const total = data?.total || 0;
 
-  const angles = [
-    { value: '', label: 'ทุกมุม', active: 'bg-primary text-primary-foreground' },
-    { value: 'front', label: 'ด้านหน้า', active: 'bg-blue-500 text-white' },
-    { value: 'back', label: 'ด้านหลัง', active: 'bg-violet-500 text-white' },
-    { value: 'left', label: 'ด้านซ้าย', active: 'bg-emerald-500 text-white' },
-    { value: 'right', label: 'ด้านขวา', active: 'bg-orange-500 text-white' },
-    { value: 'top', label: 'ด้านบน', active: 'bg-pink-500 text-white' },
-    { value: 'bottom', label: 'ด้านล่าง', active: 'bg-sky-500 text-white' },
-    { value: 'detail', label: 'รายละเอียด', active: 'bg-lime-500 text-white' },
-    { value: 'package', label: 'แพ็คเกจ', active: 'bg-fuchsia-500 text-white' },
-    { value: '360', label: '360°', active: 'bg-amber-500 text-white' },
-  ];
+  // Bulk actions
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const bulkDelete = async () => {
+    const count = selectedIds.size;
+    for (const id of selectedIds) {
+      try { await api.delete(`/api/photos/${id}`); } catch { /* skip */ }
+    }
+    toast.success(`ลบ ${count} รูปแล้ว`);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+    queryClient.invalidateQueries({ queryKey: ['gallery'] });
+  };
+
+  const downloadZip = async (ids: number[]) => {
+    toast.info(`กำลังสร้าง ZIP (${ids.length} รูป)...`);
+    try {
+      const blob = await api.postBlob('/api/photos/download-zip', {
+        photo_ids: ids, variant: 'original', size: 'OG',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'photos.zip'; a.click();
+      URL.revokeObjectURL(url);
+      toast.success('ดาวน์โหลด ZIP สำเร็จ');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'ดาวน์โหลดไม่สำเร็จ');
+    }
+  };
 
   return (
     <>
+      {/* Toolbar */}
       <Toolbar>
         <ToolbarHeading title="แกลเลอรี่" description={`${total} รูปทั้งหมด`} />
         <ToolbarActions>
           {photos.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                const ids = photos.map((p) => p.id);
-                toast.info(`กำลังสร้าง ZIP (${ids.length} รูป)...`);
-                try {
-                  const blob = await api.postBlob('/api/photos/download-zip', {
-                    photo_ids: ids, variant: 'original', size: 'OG',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url; a.download = 'photos.zip'; a.click();
-                  URL.revokeObjectURL(url);
-                  toast.success('ดาวน์โหลด ZIP สำเร็จ');
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : 'ดาวน์โหลดไม่สำเร็จ');
-                }
-              }}
-            >
-              <FileArchive className="size-4" />
-              ZIP
+            <Button variant="outline" size="sm" onClick={() => downloadZip(photos.map((p) => p.id))}>
+              <FileArchive className="size-4" /> ZIP
             </Button>
           )}
           <div className="flex items-center border border-border rounded-lg overflow-hidden">
             <button onClick={() => setViewMode('grid')}
-              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title="Grid view">
+              className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
               <Grid2x2 className="size-4" />
             </button>
             <button onClick={() => setViewMode('product')}
-              className={`p-1.5 transition-colors ${viewMode === 'product' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-              title="Product view">
+              className={`p-1.5 transition-colors ${viewMode === 'product' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
               <Layers className="size-4" />
             </button>
-            {viewMode === 'grid' && ([
+            {viewMode === 'grid' && [
               { key: 'sm' as const, icon: Grid3x3 },
               { key: 'lg' as const, icon: LayoutGrid },
-            ]).map((g) => (
+            ].map((g) => (
               <button key={g.key} onClick={() => setGridSize(g.key)}
                 className={`p-1.5 transition-colors ${gridSize === g.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
                 <g.icon className="size-4" />
@@ -210,11 +135,8 @@ export function GalleryPage() {
             ))}
           </div>
           {photos.length > 0 && (
-            <Button
-              variant={selectMode ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}
-            >
+            <Button variant={selectMode ? 'default' : 'outline'} size="sm"
+              onClick={() => { setSelectMode(!selectMode); setSelectedIds(new Set()); }}>
               <CheckSquare className="size-4" />
               {selectMode ? `เลือกอยู่ (${selectedIds.size})` : 'เลือก'}
             </Button>
@@ -222,373 +144,63 @@ export function GalleryPage() {
         </ToolbarActions>
       </Toolbar>
 
-    <div className="container pb-7 space-y-5">
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="ค้นหาบาร์โค้ด ชื่อ หมวดหมู่..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-          />
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {angles.map((a) => (
-            <button
-              key={a.value}
-              onClick={() => { setAngle(a.value); setPage(1); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                angle === a.value
-                  ? `${a.active} shadow-sm`
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              {a.label}
+      <div className="container pb-7 space-y-5">
+        {/* Filters */}
+        <PhotoFilters
+          search={search}
+          angle={angle}
+          onSearchChange={(v) => { setSearch(v); setPage(1); }}
+          onAngleChange={(v) => { setAngle(v); setPage(1); }}
+        />
+
+        {/* Photo Grid / Product View */}
+        <PhotoGrid
+          photos={photos}
+          isLoading={isLoading}
+          gridSize={gridSize}
+          viewMode={viewMode}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onPhotoClick={(photo) => setSelectedId(photo.id)}
+          onToggleSelect={toggleSelect}
+          onView360={setViewer360Barcode}
+        />
+
+        {/* Pagination */}
+        {total > 60 && (
+          <div className="flex justify-center gap-2 pt-2">
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
+              className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-30 transition-colors">
+              ก่อนหน้า
             </button>
-          ))}
-        </div>
+            <span className="px-4 py-2 text-sm text-muted-foreground">{page} / {Math.ceil(total / 60)}</span>
+            <button onClick={() => setPage(page + 1)} disabled={page * 60 >= total}
+              className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-30 transition-colors">
+              ถัดไป
+            </button>
+          </div>
+        )}
+
+        {/* 360 Viewer */}
+        {viewer360Barcode && (
+          <Viewer360Inline barcode={viewer360Barcode} onClose={() => setViewer360Barcode(null)} />
+        )}
+
+        {/* Lightbox */}
+        {selectedId && detail && (
+          <PhotoLightbox detail={detail} onClose={() => setSelectedId(null)} onDelete={(id) => deleteMutation.mutate(id)} />
+        )}
       </div>
 
-      {/* Grid */}
-      {isLoading ? (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-border bg-card animate-pulse">
-              <div className="aspect-square bg-muted rounded-t-xl" />
-              <div className="p-3 space-y-2">
-                <div className="h-3 bg-muted rounded w-3/4" />
-                <div className="h-2 bg-muted rounded w-1/2" />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : photos.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="size-16 rounded-2xl bg-muted flex items-center justify-center mb-5">
-            <ImageIcon className="size-7 text-muted-foreground/60" />
-          </div>
-          <h3 className="text-base font-semibold text-foreground mb-1">ยังไม่มีรูปภาพ</h3>
-          <p className="text-sm text-muted-foreground max-w-md text-center">
-            เริ่มถ่ายรูปสินค้าโดยไปที่หน้า "ถ่ายภาพ" แล้วสแกนบาร์โค้ด
-          </p>
-        </div>
-      ) : viewMode === 'product' ? (
-        /* Product Card View — grouped by barcode */
-        <div className="space-y-5">
-          {Array.from(new Map(photos.map((p) => [p.barcode, p])).values())
-            .map((first) => {
-              const barcodePhotos = photos.filter((p) => p.barcode === first.barcode);
-              return (
-                <div key={first.barcode} className="rounded-xl border border-border bg-card overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/30">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-primary">{first.barcode}</span>
-                      <span className="text-2xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{barcodePhotos.length} รูป</span>
-                    </div>
-                    <button onClick={() => { navigator.clipboard.writeText(first.barcode); toast.success('คัดลอกแล้ว'); }}
-                      className="text-muted-foreground hover:text-primary"><Copy className="size-3.5" /></button>
-                  </div>
-                  <div className="p-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                    {barcodePhotos.map((photo) => (
-                      <div key={photo.id} onClick={() => { setSelectedId(photo.id); setVariant('original'); setSize('M'); }}
-                        className="group cursor-pointer rounded-lg border border-border overflow-hidden hover:shadow-md transition-all">
-                        <div className="aspect-square bg-muted relative">
-                          <img src={photo.thumbnail_url} alt={photo.filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                          <div className={`absolute top-1 right-1 size-2 rounded-full ring-1 ring-card ${photo.status === 'done' ? 'bg-emerald-500' : 'bg-muted-foreground'}`} />
-                        </div>
-                        <div className="px-1.5 py-1">
-                          <p className="text-2xs text-center font-medium text-muted-foreground">{photo.angle}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-        </div>
-      ) : (
-        <div className={`grid gap-4 ${
-                gridSize === 'sm' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10' :
-                gridSize === 'lg' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' :
-                'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-              }`}>
-          {photos.map((photo) => (
-            <div
-              key={photo.id}
-              onClick={() => {
-                if (selectMode) { toggleSelect(photo.id); }
-                else { setSelectedId(photo.id); setVariant('original'); setSize('M'); }
-              }}
-              className={`group rounded-xl border overflow-hidden cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ${
-                selectMode && selectedIds.has(photo.id)
-                  ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                  : 'border-border bg-card'
-              }`}
-            >
-              <div className="aspect-square bg-muted relative overflow-hidden">
-                <img
-                  src={photo.thumbnail_url}
-                  alt={photo.filename}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
-                {/* Select checkbox */}
-                {selectMode ? (
-                  <div className="absolute top-2 left-2 z-10">
-                    {selectedIds.has(photo.id) ? (
-                      <CheckSquare className="size-5 text-primary drop-shadow" />
-                    ) : (
-                      <Square className="size-5 text-white/70 drop-shadow" />
-                    )}
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <Eye className="size-6 text-white" />
-                  </div>
-                )}
-                {/* Status dot */}
-                <div className={`absolute top-2 right-2 size-2.5 rounded-full ring-2 ring-card ${
-                  photo.status === 'done' ? 'bg-emerald-500' :
-                  photo.status === 'processing' ? 'bg-amber-500 animate-pulse' :
-                  photo.status === 'error' ? 'bg-red-500' : 'bg-muted-foreground'
-                }`} />
-              </div>
-              <div className="p-3">
-                <div className="flex items-center gap-1">
-                  <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">{photo.barcode}</p>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(photo.barcode); toast.success('คัดลอกบาร์โค้ดแล้ว'); }}
-                    className="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    title="คัดลอกบาร์โค้ด"
-                  >
-                    <Copy className="size-3" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-2xs px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
-                    {photo.angle}
-                  </span>
-                  {photo.has_cutout && (
-                    <span className="text-2xs px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 font-medium">
-                      cutout
-                    </span>
-                  )}
-                  {photo.angle === '360' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setViewer360Barcode(photo.barcode); }}
-                      className="text-2xs px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 font-medium hover:bg-amber-500/20 transition-colors"
-                    >
-                      360°
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {total > 60 && (
-        <div className="flex justify-center gap-2 pt-2">
-          <button
-            onClick={() => setPage(Math.max(1, page - 1))}
-            disabled={page === 1}
-            className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-30 transition-colors"
-          >
-            ก่อนหน้า
-          </button>
-          <span className="px-4 py-2 text-sm text-muted-foreground">
-            {page} / {Math.ceil(total / 60)}
-          </span>
-          <button
-            onClick={() => setPage(page + 1)}
-            disabled={page * 60 >= total}
-            className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-30 transition-colors"
-          >
-            ถัดไป
-          </button>
-        </div>
-      )}
-
-      {/* Inline 360 Viewer */}
-      {viewer360Barcode && (
-        <div className="rounded-xl border border-amber-500/20 bg-gradient-to-br from-amber-50/30 to-card dark:from-card dark:to-amber-950/10 overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-border/50">
-            <div className="flex items-center gap-2">
-              <div className="size-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
-                <Eye className="size-3.5 text-white" />
-              </div>
-              <span className="text-sm font-semibold text-foreground">360° — {viewer360Barcode}</span>
-            </div>
-            <button onClick={() => setViewer360Barcode(null)}
-              className="size-7 rounded-lg flex items-center justify-center hover:bg-muted transition-colors">
-              <X className="size-4" />
-            </button>
-          </div>
-          <iframe
-            src={`/api/spin360/${viewer360Barcode}/viewer`}
-            className="w-full bg-black"
-            style={{ height: '450px' }}
-            title="360 Viewer"
-          />
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {selectedId && detail && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-             onClick={() => setSelectedId(null)}>
-          <div className="bg-card rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-border"
-               onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-border/50">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">{detail.filename}</h3>
-                <p className="text-2xs text-muted-foreground mt-0.5">
-                  {detail.barcode} · {detail.angle} · {detail.width}×{detail.height} · {detail.status}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {detail.urls['original']?.[size] && detail.urls['cutout']?.[size] && (
-                  <button onClick={() => { setCompareMode(!compareMode); setSliderPos(50); }}
-                    className={`size-8 rounded-lg flex items-center justify-center transition-colors ${
-                      compareMode ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
-                    }`}
-                    title="เปรียบเทียบ">
-                    <SplitSquareHorizontal className="size-4" />
-                  </button>
-                )}
-                <button onClick={() => deleteMutation.mutate(detail.id)}
-                  className="size-8 rounded-lg flex items-center justify-center hover:bg-destructive/10 text-destructive transition-colors">
-                  <Trash2 className="size-4" />
-                </button>
-                <button onClick={() => { setSelectedId(null); setCompareMode(false); }}
-                  className="size-8 rounded-lg flex items-center justify-center hover:bg-muted transition-colors">
-                  <X className="size-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Image / Comparison */}
-            {compareMode && detail.urls['original']?.[size] && detail.urls['cutout']?.[size] ? (
-              <div
-                ref={compareRef}
-                className="relative bg-black/90 min-h-[400px] max-h-[60vh] overflow-hidden cursor-col-resize select-none"
-                onMouseMove={(e) => e.buttons === 1 && handleSliderDrag(e)}
-                onTouchMove={handleSliderDrag}
-                onClick={handleSliderDrag}
-              >
-                {/* Cutout (full background) */}
-                <img src={detail.urls['cutout'][size]} alt="cutout"
-                  className="w-full h-full object-contain absolute inset-0" style={{ maxHeight: '60vh' }} />
-                {/* Original (clipped by slider) */}
-                <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
-                  <img src={detail.urls['original'][size]} alt="original"
-                    className="absolute inset-0 w-full h-full object-contain" style={{ maxHeight: '60vh' }} />
-                </div>
-                {/* Slider line */}
-                <div className="absolute top-0 bottom-0 w-0.5 bg-white/80 shadow-lg" style={{ left: `${sliderPos}%` }}>
-                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-8 rounded-full bg-white shadow-lg flex items-center justify-center">
-                    <SplitSquareHorizontal className="size-4 text-zinc-700" />
-                  </div>
-                </div>
-                {/* Labels */}
-                <span className="absolute top-3 left-3 px-2 py-0.5 rounded bg-blue-500/80 text-white text-xs font-medium">ต้นฉบับ</span>
-                <span className="absolute top-3 right-3 px-2 py-0.5 rounded bg-emerald-500/80 text-white text-xs font-medium">ลบพื้นหลัง</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center bg-black/90 min-h-[400px] max-h-[60vh]">
-                {detail.urls[variant]?.[size] ? (
-                  <img src={detail.urls[variant][size]} alt={detail.filename}
-                    className="max-w-full max-h-[60vh] object-contain" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16">
-                    <div className="size-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                      <ImageIcon className="size-5 text-muted-foreground/60" />
-                    </div>
-                    <p className="text-sm text-muted-foreground">ไม่พบรูปสำหรับ {variant}/{size}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="p-5 border-t border-border/50 flex flex-wrap gap-5">
-              <div>
-                <label className="text-2xs text-muted-foreground font-medium uppercase tracking-wider block mb-1.5">ประเภท</label>
-                <div className="flex gap-1">
-                  {[
-                    { key: 'original', label: 'ต้นฉบับ', color: 'blue' },
-                    { key: 'cutout', label: 'ลบพื้นหลัง', color: 'emerald' },
-                    { key: 'watermarked', label: 'ลายน้ำ', color: 'violet' },
-                    { key: 'watermarked_original', label: 'ลายน้ำ+ต้นฉบับ', color: 'amber' },
-                  ].map((v) => (
-                    <button key={v.key} onClick={() => setVariant(v.key)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        variant === v.key
-                          ? `bg-${v.color}-500/10 text-${v.color}-500 ring-1 ring-${v.color}-500/20`
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      }`}>
-                      {v.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-2xs text-muted-foreground font-medium uppercase tracking-wider block mb-1.5">ขนาด</label>
-                <div className="flex gap-1">
-                  {['S', 'M', 'L', 'OG'].map((s) => (
-                    <button key={s} onClick={() => setSize(s)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
-                        size === s
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      }`}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 ml-auto">
-                {detail.urls[variant]?.[size] && (
-                  <a href={detail.urls[variant][size]} download
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
-                    <Download className="size-4" /> ดาวน์โหลด
-                  </a>
-                )}
-              </div>
-            </div>
-            {/* Tags */}
-            <PhotoTagBar photoId={detail.id} />
-          </div>
-        </div>
-      )}
-    </div>
-
-      {/* Floating bulk action bar */}
-      {selectMode && selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-5 py-3 rounded-2xl bg-card border border-border shadow-2xl">
-          <span className="text-sm font-medium text-foreground">เลือก {selectedIds.size} รูป</span>
-          <div className="w-px h-5 bg-border" />
-          <Button size="sm" variant="outline" onClick={() => setSelectedIds(new Set(photos.map((p) => p.id)))}>
-            เลือกทั้งหมด
-          </Button>
-          <Button size="sm" variant="outline" onClick={bulkDownload}>
-            <FileArchive className="size-4" />
-            ZIP
-          </Button>
-          <Button size="sm" variant="destructive" onClick={bulkDelete}>
-            <Trash2 className="size-4" />
-            ลบ
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}>
-            <X className="size-4" />
-          </Button>
-        </div>
+      {/* Bulk Actions */}
+      {selectMode && (
+        <BulkActionBar
+          count={selectedIds.size}
+          onSelectAll={() => setSelectedIds(new Set(photos.map((p) => p.id)))}
+          onDownload={() => downloadZip(Array.from(selectedIds))}
+          onDelete={bulkDelete}
+          onCancel={() => { setSelectMode(false); setSelectedIds(new Set()); }}
+        />
       )}
     </>
   );
